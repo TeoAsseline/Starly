@@ -29,7 +29,7 @@ export default function FilmCard({ film, onPress, userNote }) {
         {userNote && (
           <View style={styles.noteContainer}>
             <Ionicons name="star" color="#FFD700" size={16} />
-            <Text style={styles.noteText}>{userNote} / 5</Text>
+            <Text style={styles.noteText}>{userNote} / 10</Text>
           </View>
         )}
       </View>

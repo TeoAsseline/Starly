@@ -1,27 +1,24 @@
 import React, { useState, useEffect, useContext } from 'react';
 import { StyleSheet, Text, View, Image, ScrollView, TextInput, TouchableOpacity, Alert } from 'react-native';
-import { Ionicons } from '@expo/vector-icons'; 
-import StarRating from '../components/StarRating'; // Assurez-vous que StarRating est dans le dossier components ou importez-le correctement
-import { saveFilm, getFilmNote } from '../database/db'; // Import des fonctions DB
-import { AuthContext } from '../App'; // Import du contexte utilisateur
+// import { Ionicons } from '@expo/vector-icons'; // Plus utilisé ici directement si vous ne l'utilisez pas ailleurs
+import StarRating from '../components/StarRating';
+import { saveFilm, getFilmNote } from '../database/db';
+import { AuthContext } from '../App';
 
 export default function DetailScreen({ route, navigation }) {
   const { user } = useContext(AuthContext);
-  // On récupère les données du film passées depuis l'écran de recherche
   const { film } = route.params;
 
   const [note, setNote] = useState(0); 
   const [commentaire, setCommentaire] = useState('');
   const [loading, setLoading] = useState(true);
 
-  // Détermine la source de l'affiche (TMDB ou OMDb/DB)
   const posterUrl = film.Poster 
-    ? film.Poster // OMDb Poster
+    ? film.Poster
     : film.poster_path 
-      ? `https://image.tmdb.org/t/p/w500${film.poster_path}` // TMDB Poster
+      ? `https://image.tmdb.org/t/p/w500${film.poster_path}`
       : 'https://via.placeholder.com/200/141414/FFFFFF/?text=Pas+d\'affiche';
 
-  // Récupère la note et le commentaire existants au chargement
   useEffect(() => {
     async function loadExistingNote() {
       if (user && film.imdbID) {
@@ -45,13 +42,13 @@ export default function DetailScreen({ route, navigation }) {
       Alert.alert("Erreur", "Vous devez être connecté pour noter un film.");
       return;
     }
+    // Validation adaptée : 0 signifie qu'aucune étoile (même pas une demi) n'a été sélectionnée.
     if (note === 0) {
-        Alert.alert("Erreur", "Veuillez donner une note de 1 à 5 étoiles.");
+        Alert.alert("Note manquante", "Veuillez attribuer au moins une demi-étoile.");
         return;
     }
 
     try {
-      // Données à enregistrer
       const filmData = {
         imdbID: film.imdbID,
         titre: film.Title || film.title,
@@ -63,8 +60,6 @@ export default function DetailScreen({ route, navigation }) {
 
       await saveFilm(user.id, filmData);
       Alert.alert("Succès", "Votre note et votre commentaire ont été enregistrés !");
-      
-      // Optionnel: Retourner à l'écran précédent ou rafraîchir le profil
       navigation.goBack(); 
 
     } catch (error) {
@@ -92,7 +87,16 @@ export default function DetailScreen({ route, navigation }) {
 
         <View style={styles.ratingSection}>
           <Text style={styles.sectionTitle}>Votre note</Text>
+          
+          {/* Le composant StarRating gère l'affichage, on lui passe juste la note sur 10 */}
           <StarRating rating={note} onRatingChange={setNote} />
+          
+          {/* PETIT AJOUT UTILE : Affiche la valeur numérique pour confirmer à l'utilisateur */}
+          {note > 0 && (
+            <Text style={styles.ratingValue}>
+              {note}/10
+            </Text>
+          )}
         </View>
 
         <View style={styles.commentSection}>
@@ -148,6 +152,12 @@ const styles = StyleSheet.create({
     fontSize: 20,
     fontWeight: 'bold',
     marginBottom: 15,
+  },
+  ratingValue: {
+    color: '#FFD700',
+    fontSize: 16,
+    marginTop: 5,
+    fontWeight: 'bold',
   },
   commentSection: {
     marginBottom: 30,
