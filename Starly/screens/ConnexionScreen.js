@@ -8,8 +8,7 @@ export default function ConnexionScreen({ navigation }) {
   // Fonction pour naviguer vers l'écran de recherche
   const handleLogin = () => {
     // Ici, tu mettrais ta logique de vérification de login/mot de passe
-    // Pour l'exemple, on navigue directement
-    navigation.replace('Recherche'); // .replace empêche de revenir en arrière à la connexion
+    navigation.replace('MainApp'); // .replace empêche de revenir en arrière à la connexion
   };
 
   return (

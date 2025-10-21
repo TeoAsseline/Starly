@@ -1,35 +1,16 @@
 // screens/DetailScreen.js
 import React, { useState } from 'react';
 import { StyleSheet, Text, View, Image, ScrollView, TextInput, TouchableOpacity } from 'react-native';
-// On va installer `expo-vector-icons` pour les étoiles
-// npx expo install @expo/vector-icons
 import { Ionicons } from '@expo/vector-icons'; 
-
-// Composant pour la notation par étoiles
-const StarRating = ({ rating, onRatingChange }) => {
-  return (
-    <View style={styles.starContainer}>
-      {[1, 2, 3, 4, 5].map((star) => (
-        <TouchableOpacity key={star} onPress={() => onRatingChange(star)}>
-          <Ionicons
-            name={star <= rating ? 'star' : 'star-outline'}
-            size={40}
-            color="#FFD700" // Couleur or
-          />
-        </TouchableOpacity>
-      ))}
-    </View>
-  );
-};
+import StarRating from '../components/StarRating'; 
 
 
 export default function DetailScreen({ route }) {
   // On récupère les données du film passées depuis l'écran de recherche
   const { film } = route.params;
 
-  // Variables d'état pour la note et le commentaire de l'utilisateur
-  const [note, setNote] = useState(0); // Note de 0 à 5
-  const [commentaire, setCommentaire] = useState('');
+  const [note, setNote] = useState(film.user_note || 0); 
+  const [commentaire, setCommentaire] = useState(film.user_comment || '');
 
   const handleSave = () => {
     // ICI, tu enregistreras la "note" et le "commentaire" dans ta base de données SQLite
