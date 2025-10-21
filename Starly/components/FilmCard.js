@@ -1,20 +1,30 @@
-// components/FilmCard.js
-import React from 'react';
 import { StyleSheet, Text, View, Image, TouchableOpacity } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 
 // Ce composant reçoit les données d'un film et une fonction onPress
 export default function FilmCard({ film, onPress, userNote }) {
-  const posterUrl = film.poster_path 
-    ? `https://image.tmdb.org/t/p/w500${film.poster_path}`
-    : 'https://via.placeholder.com/150/141414/FFFFFF/?text=Pas+d\'affiche';
+  // Détermine l'URL de l'affiche
+  const posterUrl = film.Poster && film.Poster !== 'N/A'
+    ? film.Poster // Affiche OMDb (URL complète)
+    : film.poster_path 
+      ? `https://image.tmdb.org/t/p/w500${film.poster_path}` // Affiche TMDB (path)
+      : '';
 
-return (
+  // Détermine le titre et l'année
+  const title = film.Title || film.title;
+  const year = film.Year || (film.release_date ? new Date(film.release_date).getFullYear() : 'N/A');
+
+  return (
     <TouchableOpacity style={styles.card} onPress={onPress}>
-      <Image source={{ uri: posterUrl }} style={styles.poster} />
+      <Image 
+        source={{ uri: posterUrl }} 
+        style={styles.poster} 
+        // Ajout d'une prop pour éviter l'erreur si l'URI est invalide
+        onError={(e) => console.log('Erreur de chargement de l\'image:', e.nativeEvent.error)}
+      />
       <View style={styles.info}>
-        <Text style={styles.title}>{film.title}</Text>
-        <Text style={styles.year}>{new Date(film.release_date).getFullYear()}</Text>
+        <Text style={styles.title}>{title}</Text>
+        <Text style={styles.year}>{year}</Text>
         {/* On affiche la note si elle est fournie */}
         {userNote && (
           <View style={styles.noteContainer}>
@@ -34,15 +44,16 @@ const styles = StyleSheet.create({
     marginVertical: 8,
     marginHorizontal: 16,
     flexDirection: 'row',
-    overflow: 'hidden', // Pour que l'image respecte les coins arrondis
+    overflow: 'hidden', 
   },
   poster: {
     width: 100,
     height: 150,
+    backgroundColor: '#333', // Fond en cas d'absence d'image
   },
   info: {
     padding: 15,
-    flex: 1, // Permet au texte de prendre l'espace restant
+    flex: 1, 
     justifyContent: 'center',
   },
   title: {

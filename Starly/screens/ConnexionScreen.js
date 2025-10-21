@@ -1,14 +1,49 @@
-// screens/ConnexionScreen.js
-import React from 'react';
-import { StyleSheet, Text, View, TextInput, TouchableOpacity } from 'react-native';
+import React, { useState, useContext } from 'react';
+import { StyleSheet, Text, View, TextInput, TouchableOpacity, Alert } from 'react-native';
+import { loginUser, registerUser } from '../database/db'; // Import des fonctions DB
+import { AuthContext } from '../App'; // Import du contexte utilisateur
 
-// On reçoit "navigation" en props grâce à React Navigation
 export default function ConnexionScreen({ navigation }) {
-  
-  // Fonction pour naviguer vers l'écran de recherche
-  const handleLogin = () => {
-    // Ici, tu mettrais ta logique de vérification de login/mot de passe
-    navigation.replace('MainApp'); // .replace empêche de revenir en arrière à la connexion
+  const { setUser } = useContext(AuthContext);
+  const [login, setLogin] = useState('');
+  const [password, setPassword] = useState('');
+  const [nom, setNom] = useState('');
+  const [isRegistering, setIsRegistering] = useState(false); // État pour basculer entre connexion et inscription
+
+  const handleLogin = async () => {
+    if (!login || !password) {
+      Alert.alert("Erreur", "Veuillez entrer un login et un mot de passe.");
+      return;
+    }
+    
+    try {
+      const user = await loginUser(login, password);
+      if (user) {
+        setUser(user); // Met à jour l'utilisateur dans le contexte, ce qui navigue vers MainApp
+      } else {
+        Alert.alert("Erreur de connexion", "Login ou mot de passe incorrect.");
+      }
+    } catch (error) {
+      console.error("Erreur de connexion:", error);
+      Alert.alert("Erreur", "Une erreur est survenue lors de la connexion.");
+    }
+  };
+
+  const handleRegister = async () => {
+    if (!nom || !login || !password) {
+      Alert.alert("Erreur", "Veuillez remplir tous les champs.");
+      return;
+    }
+
+    try {
+      const userId = await registerUser(nom, login, password);
+      Alert.alert("Succès", "Compte créé ! Vous pouvez maintenant vous connecter.");
+      setIsRegistering(false); // Revient à l'écran de connexion
+      setNom('');
+    } catch (error) {
+      console.error("Erreur d'inscription:", error);
+      Alert.alert("Erreur", "Ce login est peut-être déjà utilisé.");
+    }
   };
 
   return (
@@ -16,21 +51,47 @@ export default function ConnexionScreen({ navigation }) {
       <Text style={styles.title}>Starly</Text>
       <Text style={styles.subtitle}>Notez et archivez vos films préférés.</Text>
       
+      {isRegistering && (
+        <TextInput
+          style={styles.input}
+          placeholder="Nom / Pseudo"
+          placeholderTextColor="#888"
+          value={nom}
+          onChangeText={setNom}
+        />
+      )}
+
       <TextInput
         style={styles.input}
-        placeholder="Email"
+        placeholder="Login (Email)"
         placeholderTextColor="#888"
         keyboardType="email-address"
+        value={login}
+        onChangeText={setLogin}
       />
       <TextInput
         style={styles.input}
         placeholder="Mot de passe"
         placeholderTextColor="#888"
         secureTextEntry
+        value={password}
+        onChangeText={setPassword}
       />
       
-      <TouchableOpacity style={styles.button} onPress={handleLogin}>
-        <Text style={styles.buttonText}>Se connecter</Text>
+      <TouchableOpacity 
+        style={styles.button} 
+        onPress={isRegistering ? handleRegister : handleLogin}
+      >
+        <Text style={styles.buttonText}>{isRegistering ? "Créer un compte" : "Se connecter"}</Text>
+      </TouchableOpacity>
+
+      <TouchableOpacity 
+        style={styles.linkButton} 
+        onPress={() => setIsRegistering(!isRegistering)}
+      >
+        <Text style={styles.linkText}>
+          {isRegistering ? "Déjà un compte ? Connectez-vous" : "Pas de compte ? Inscrivez-vous"}
+        </Text>
       </TouchableOpacity>
     </View>
   );
@@ -39,7 +100,7 @@ export default function ConnexionScreen({ navigation }) {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#141414', // Fond sombre type Netflix
+    backgroundColor: '#141414', 
     alignItems: 'center',
     justifyContent: 'center',
     padding: 20,
@@ -47,7 +108,7 @@ const styles = StyleSheet.create({
   title: {
     fontSize: 48,
     fontWeight: 'bold',
-    color: '#E50914', // Rouge Netflix
+    color: '#E50914', 
     marginBottom: 10,
   },
   subtitle: {
@@ -77,4 +138,11 @@ const styles = StyleSheet.create({
     fontSize: 18,
     fontWeight: 'bold',
   },
+  linkButton: {
+    marginTop: 15,
+  },
+  linkText: {
+    color: '#ccc',
+    fontSize: 14,
+  }
 });
