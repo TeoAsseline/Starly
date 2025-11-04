@@ -80,10 +80,8 @@ export default function DetailScreen({ route }) {
     }
   };
 
-  // 👁 Flip direct pour le bouton "À voir"
   const handleToggleARegarder = async () => {
     if (!aRegarder && note > 0) {
-      // Cas : le film a une note et on veut le mettre "à voir" → on supprime la note
       setARegarder(true);
       setNote(0);
       setCommentaire('');
@@ -93,31 +91,28 @@ export default function DetailScreen({ route }) {
         type: 'info',
       });
     } else if (aRegarder) {
-      // Cas : on retire de "à voir"
       setARegarder(false);
       await autoSave({ a_regarder: false });
       showMessage({
-        message: "Le film a été retiré de la liste 'À voir'",
+        message: "Le film a été retiré de la WatchList",
         type: 'info',
       });
     } else {
-      // Cas simple : film sans note, on l’ajoute à “à voir”
       setARegarder(true);
       await autoSave({ a_regarder: true });
       showMessage({
-        message: "Le film a été ajouté dans les films 'À voir'",
+        message: "Le film a été ajouté dans la WatchList",
         type: 'info',
       });
     }
   };
 
-  // ⭐ Quand on note → on retire le film de "à voir"
   const handleRatingChange = async (newNote) => {
     setNote(newNote);
     if (newNote > 0 && aRegarder) {
       setARegarder(false);
       showMessage({
-        message: "Le film a été retiré de la liste 'À voir'",
+        message: "Le film a été retiré de la WatchList",
         type: 'info',
       });
       await autoSave({ note: newNote, a_regarder: false });
@@ -126,7 +121,6 @@ export default function DetailScreen({ route }) {
     }
   };
 
-  // 💬 Debounce pour commentaire
   const handleCommentChange = (text) => {
     setCommentaire(text);
     if (saveTimeout.current) clearTimeout(saveTimeout.current);
@@ -152,25 +146,27 @@ export default function DetailScreen({ route }) {
           {film.Plot || film.overview || 'Aucune description disponible.'}
         </Text>
 
-        <View style={styles.actionSection}>
-          <TouchableOpacity
-            style={styles.watchListButton}
-            onPress={handleToggleARegarder}
-          >
-            <Ionicons
-              name={aRegarder ? 'eye-off' : 'eye'}
-              size={24}
-              color={aRegarder ? '#E50914' : '#fff'}
-            />
-          </TouchableOpacity>
-        </View>
+        {/* Ligne de séparation */}
+        <View style={styles.spacer} />
+
+        {/* Bouton pour la watchlist plus explicite */}
+        <TouchableOpacity
+          style={[
+            styles.watchListButton,
+            { backgroundColor: aRegarder ? '#E50914' : '#333' },
+          ]}
+          onPress={handleToggleARegarder}
+        >
+          <Ionicons name={aRegarder ? 'eye-off' : 'eye'} size={22} color="#fff" />
+          <Text style={styles.watchListButtonText}>
+            {aRegarder ? 'Retirer de ma WatchList' : 'Ajouter à ma Watchlist'}
+          </Text>
+        </TouchableOpacity>
 
         <View style={styles.ratingSection}>
           <Text style={styles.sectionTitle}>Votre note</Text>
           <StarRating rating={note} onRatingChange={handleRatingChange} />
-          {note > 0 && (
-            <Text style={styles.ratingValue}>{note}/10</Text>
-          )}
+          {note > 0 && <Text style={styles.ratingValue}>{note}/10</Text>}
         </View>
 
         <View style={styles.commentSection}>
@@ -216,14 +212,25 @@ const styles = StyleSheet.create({
     marginBottom: 15,
     alignSelf: 'flex-start',
   },
-  actionSection: {
-    marginVertical: 10,
-    alignItems: 'center',
+  spacer: {
     borderBottomWidth: 1,
     borderBottomColor: '#333',
-    paddingBottom: 20,
+    marginVertical: 15,
   },
-  watchListButton: { padding: 10 },
+  watchListButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: 8,
+    paddingVertical: 12,
+    marginBottom: 15,
+  },
+  watchListButtonText: {
+    color: '#fff',
+    fontSize: 16,
+    fontWeight: 'bold',
+    marginLeft: 10,
+  },
   ratingSection: { marginVertical: 20, alignItems: 'center' },
   ratingValue: {
     color: '#FFD700',
@@ -234,6 +241,7 @@ const styles = StyleSheet.create({
   commentSection: { marginBottom: 30 },
   commentInput: {
     color: '#fff',
+    backgroundColor: '#333',
     borderRadius: 8,
     padding: 15,
     minHeight: 100,

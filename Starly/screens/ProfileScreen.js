@@ -8,6 +8,7 @@ import {
   TextInput,
   TouchableOpacity,
   ScrollView,
+  Modal 
 } from 'react-native';
 import React, { useState, useCallback, useContext } from 'react';
 import { showMessage, hideMessage } from 'react-native-flash-message';
@@ -37,6 +38,47 @@ const statsStyles = StyleSheet.create({
   statLabel: { color: '#ccc', fontSize: 14, marginTop: 5 },
 });
 
+const FilterModal = ({ isVisible, onClose, options, currentValue, setValue, title }) => (
+  <Modal
+    animationType="fade"
+    transparent={true}
+    visible={isVisible}
+    onRequestClose={onClose}
+  >
+    <TouchableOpacity 
+      style={styles.modalOverlay} 
+      activeOpacity={1} 
+      onPress={onClose} 
+    >
+      <View style={styles.modalContentWrapper}>
+        <View style={styles.modalContent}>
+          <Text style={styles.modalTitle}>{title}</Text>
+          <ScrollView style={styles.modalOptionsScrollView}>
+            {options.map((option) => (
+              <TouchableOpacity
+                key={option.value === null ? 'null' : option.value.toString()}
+                style={[
+                  styles.modalOptionButton,
+                  currentValue === option.value ? styles.activeSelectOptionButton : {},
+                ]}
+                onPress={() => {
+                  setValue(option.value);
+                  onClose(); 
+                }}
+              >
+                <Text style={[
+                  styles.modalOptionText,
+                  currentValue === option.value ? styles.activeSelectOptionText : {},
+                ]}>{option.label}</Text>
+              </TouchableOpacity>
+            ))}
+          </ScrollView>
+        </View>
+      </View>
+    </TouchableOpacity>
+  </Modal>
+);
+
 export default function ProfileScreen({ navigation }) {
   const { user, setUser } = useContext(AuthContext);
   const [films, setFilms] = useState([]);
@@ -44,9 +86,29 @@ export default function ProfileScreen({ navigation }) {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [searchText, setSearchText] = useState('');
-  const [filterNote, setFilterNote] = useState(null);
-  const [sortBy, setSortBy] = useState('none');
-  const [sortDirection, setSortDirection] = useState('desc');
+
+  const [noteValueFilter, setNoteValueFilter] = useState(null); 
+  const [noteOperator, setNoteOperator] = useState('>='); 
+  
+  const [sortBy, setSortBy] = useState('none'); 
+  const [sortDirection, setSortDirection] = useState('desc'); 
+  const [isModalVisible, setIsModalVisible] = useState(false);
+  const [modalOptions, setModalOptions] = useState([]);
+  const [modalCurrentValue, setModalCurrentValue] = useState(null);
+  const [modalSetValue, setModalSetValue] = useState(() => () => {}); // Fonction de mise à jour du state (note ou opérateur)
+  const [modalTitle, setModalTitle] = useState('');
+
+  const openModal = (options, currentValue, setValue, title) => {
+    setModalOptions(options);
+    setModalCurrentValue(currentValue);
+    setModalSetValue(() => setValue); 
+    setModalTitle(title);
+    setIsModalVisible(true);
+  };
+  
+  const closeModal = () => {
+    setIsModalVisible(false);
+  };
 
   const loadFilmsAndStats = useCallback(async () => {
     if (!user) return;
@@ -79,26 +141,46 @@ export default function ProfileScreen({ navigation }) {
         searchText === '' ||
         film.titre.toLowerCase().includes(searchText.toLowerCase()) ||
         (film.annee && film.annee.includes(searchText)) ||
-        (film.commentaire && film.commentaire.toLowerCase().includes(searchText.toLowerCase()));
-      const matchesNote = filterNote === null || film.note === filterNote;
+        (film.commentaire &&
+          film.commentaire.toLowerCase().includes(searchText.toLowerCase()));
+
+      let matchesNote = true;
+      if (noteValueFilter !== null) {
+        const filmNote = Number(film.note); 
+        const filterValue = Number(noteValueFilter);
+
+        if (noteOperator === '===') {
+          matchesNote = filmNote === filterValue;
+        } else if (noteOperator === '>=') {
+          matchesNote = filmNote >= filterValue;
+        } else if (noteOperator === '<=') {
+          matchesNote = filmNote <= filterValue;
+        }
+      }
+
       return matchesSearch && matchesNote;
     })
     .sort((a, b) => {
-      if (sortBy === 'none') return 0;
+      if (sortBy === 'none') {
+        return 0;
+      }
+
       let valA, valB;
       if (sortBy === 'titre') {
         valA = a.titre.toLowerCase();
         valB = b.titre.toLowerCase();
       } else if (sortBy === 'annee') {
-        valA = parseInt(a.annee, 10) || 0;
-        valB = parseInt(b.annee, 10) || 0;
+        valA = parseInt(a.annee, 10) || (sortDirection === 'asc' ? Infinity : -Infinity);
+        valB = parseInt(b.annee, 10) || (sortDirection === 'asc' ? Infinity : -Infinity);
       } else if (sortBy === 'note') {
-        valA = a.note || 0;
-        valB = b.note || 0;
+        valA = a.note || (sortDirection === 'asc' ? 11 : -1); 
+        valB = b.note || (sortDirection === 'asc' ? 11 : -1);
       }
-      if (typeof valA === 'number') {
-        return sortDirection === 'asc' ? valA - valB : valB - valA;
+
+      if (typeof valA === 'number' && typeof valB === 'number') {
+        return sortDirection === 'asc' ? (valA - valB) : (valB - valA);
       }
+      
       if (valA < valB) return sortDirection === 'asc' ? -1 : 1;
       if (valA > valB) return sortDirection === 'asc' ? 1 : -1;
       return 0;
@@ -123,10 +205,20 @@ export default function ProfileScreen({ navigation }) {
       hideOnPress: false,
       renderFlashMessageIcon: () => (
         <View style={styles.popupButtonsContainer}>
-          <TouchableOpacity style={[styles.popupButton, styles.cancelButton]} onPress={() => hideMessage()}>
+          <TouchableOpacity
+            style={[styles.popupButton, styles.cancelButton]}
+            onPress={() => hideMessage()} 
+          >
             <Text style={styles.popupButtonText}>Annuler</Text>
           </TouchableOpacity>
-          <TouchableOpacity style={[styles.popupButton, styles.confirmDeleteButton]} onPress={() => { hideMessage(); performDelete(idFilm); }}>
+
+          <TouchableOpacity
+            style={[styles.popupButton, styles.confirmDeleteButton]}
+            onPress={() => {
+              hideMessage(); 
+              performDelete(idFilm); 
+            }}
+          >
             <Text style={styles.popupButtonText}>Supprimer</Text>
           </TouchableOpacity>
         </View>
@@ -137,18 +229,51 @@ export default function ProfileScreen({ navigation }) {
   const handleLogout = () => setUser(null);
   const onRefresh = () => { setRefreshing(true); loadFilmsAndStats(); };
 
-  const renderNoteFilters = () => {
-    const notes = [null, ...Array.from({ length: 21 }, (v, i) => i)];
+  const renderNoteFilterControls = () => {
+    
+    const noteOptions = [
+      { value: null, label: 'Tout' },
+      ...Array.from({ length: 11 }, (v, i) => ({
+        value: i,
+        label: i === 0 ? '0' : `${i / 2} ★`, 
+      })),
+    ];
+
+    const operatorOptions = [
+      { value: '>=', label: '≥ (et plus)' },
+      { value: '===', label: '= (exactement)' },
+      { value: '<=', label: '≤ (et moins)' },
+    ];
+    
+    const renderSelectButton = (options, currentValue, setValue, defaultLabel, title) => {
+      const currentOption = options.find(opt => opt.value === currentValue);
+      const displayLabel = currentOption ? currentOption.label : defaultLabel;
+
+      return (
+        <TouchableOpacity 
+          style={styles.selectBox} 
+          onPress={() => openModal(options, currentValue, setValue, title)}
+        >
+          <Text style={styles.selectBoxText}>
+            {displayLabel}
+          </Text>
+          <Ionicons name="caret-down" size={16} color="#ccc" style={{marginLeft: 5}}/>
+        </TouchableOpacity>
+      );
+    };
+
     return (
-      <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.noteFilterScrollView} contentContainerStyle={styles.noteFilterContainer}>
-        {notes.map((note) => (
-          <TouchableOpacity key={note === null ? 'all' : note.toString()} style={[styles.noteFilterButton, filterNote === note ? styles.activeNoteFilterButton : {}]} onPress={() => setFilterNote(note)}>
-            <Text style={[styles.noteFilterText, filterNote === note ? styles.activeNoteFilterText : {}]}>
-              {note === null ? 'Tout' : `${note / 2} ⭐`}
-            </Text>
-          </TouchableOpacity>
-        ))}
-      </ScrollView>
+      <View style={styles.noteFilterControlsContainer}>
+        <Text style={styles.filterLabel}>Filtrer par note:</Text>
+        
+        <View style={styles.noteSelectorsWrapper}>
+          {/* Sélecteur d'opérateur */}
+          {renderSelectButton(operatorOptions, noteOperator, setNoteOperator, '≥ (et plus)', "Sélectionnez l'opérateur")}
+        
+          {/* Sélecteur de note */}
+          {renderSelectButton(noteOptions, noteValueFilter, setNoteValueFilter, 'Tout', "Sélectionnez la note")}
+        </View>
+      </View>
     );
   };
   
@@ -157,19 +282,40 @@ export default function ProfileScreen({ navigation }) {
     return (
       <View style={styles.sortControlsContainer}>
         <Text style={styles.sortLabel}>Trier par:</Text>
-        {sortOptions.map((option) => (
-          <TouchableOpacity key={option.key} style={[styles.sortButton, sortBy === option.key ? styles.activeSortButton : {}]} onPress={() => {
-            if (sortBy === option.key) {
-              setSortDirection(sortDirection === 'asc' ? 'desc' : 'asc');
-            } else {
-              setSortBy(option.key);
-              setSortDirection(option.key === 'titre' ? 'asc' : 'desc');
-            }
-          }}>
-            <Text style={[styles.sortButtonText, sortBy === option.key ? styles.activeSortButtonText : {}]}>{option.label}</Text>
-            {sortBy === option.key && (<Ionicons name={sortDirection === 'asc' ? 'arrow-up-sharp' : 'arrow-down-sharp'} size={14} color={styles.activeSortButtonText.color} style={styles.sortIcon}/>)}
-          </TouchableOpacity>
-        ))}
+        <View style={styles.sortButtonsWrapper}>
+          {sortOptions.map((option) => (
+            <TouchableOpacity
+              key={option.key}
+              style={[
+                styles.sortButton,
+                sortBy === option.key ? styles.activeSortButton : {},
+              ]}
+              onPress={() => {
+                if (sortBy === option.key) {
+                  setSortDirection(sortDirection === 'asc' ? 'desc' : 'asc');
+                } else {
+                  setSortBy(option.key);
+                  setSortDirection(option.key === 'titre' ? 'asc' : 'desc'); 
+                }
+              }}
+            >
+              <Text style={[
+                styles.sortButtonText,
+                sortBy === option.key ? styles.activeSortButtonText : {},
+              ]}>
+                {option.label}
+              </Text>
+              {sortBy === option.key && (
+                <Ionicons 
+                  name={sortDirection === 'asc' ? 'arrow-up-sharp' : 'arrow-down-sharp'} 
+                  size={14} 
+                  color={styles.activeSortButtonText.color} 
+                  style={styles.sortIcon}
+                />
+              )}
+            </TouchableOpacity>
+          ))}
+        </View>
       </View>
     );
   };
@@ -180,29 +326,62 @@ export default function ProfileScreen({ navigation }) {
 
   return (
     <View style={styles.container}>
+      <FilterModal
+        isVisible={isModalVisible}
+        onClose={closeModal}
+        options={modalOptions}
+        currentValue={modalCurrentValue}
+        setValue={modalSetValue}
+        title={modalTitle}
+      />
+      
       <View style={styles.header}>
         <Text style={styles.welcomeText}>Bienvenue, {user?.nom} !</Text>
         <TouchableOpacity onPress={handleLogout} style={styles.logoutButton}><Text style={styles.logoutText}>Déconnexion</Text></TouchableOpacity>
       </View>
       <StatsDashboard stats={stats} />
       
-      {/* BOUTON POUR NAVIGUER VERS LA WATCHLIST */}
-      <TouchableOpacity style={styles.watchListNavButton} onPress={() => navigation.navigate('Watchlist')}>
-        <Ionicons name="eye-outline" size={20} color="#fff" />
-        <Text style={styles.watchListNavButtonText}>Voir les films à voir</Text>
-      </TouchableOpacity>
-
-      <TextInput style={styles.searchInput} placeholder="Rechercher par titre, année ou commentaire..." placeholderTextColor="#888" value={searchText} onChangeText={setSearchText}/>
-      {renderNoteFilters()}
+      {renderNoteFilterControls()} 
       {renderSortControls()}
       <FlatList
-        data={processedFilms}
+        data={processedFilms} 
         keyExtractor={(item) => item.idFilm.toString()}
         renderItem={({ item }) => (
           <View style={styles.filmCardWrapper}>
-            <TouchableOpacity style={styles.deleteButton} onPress={() => handleDelete(item.idFilm)}><Text style={styles.deleteButtonText}>×</Text></TouchableOpacity>
-            <FilmCard film={{ Poster: item.poster, title: item.titre, Year: item.annee }} userNote={item.note} onPress={() => navigation.navigate('Detail', { film: { imdbID: item.imdbID, Title: item.titre, Year: item.annee, Poster: item.poster, user_note: item.note, user_comment: item.commentaire }})}/>
-            {item.commentaire ? (<View style={styles.commentContainer}><Text style={styles.commentLabel}>Commentaire :</Text><Text style={styles.commentText}>{item.commentaire}</Text></View>) : null}
+            <TouchableOpacity
+              style={styles.deleteButton}
+              onPress={() => handleDelete(item.idFilm)}
+            >
+              <Text style={styles.deleteButtonText}>×</Text>
+            </TouchableOpacity>
+
+            <FilmCard
+              film={{
+                Poster: item.poster,
+                title: item.titre,
+                Year: item.annee,
+              }}
+              userNote={item.note}
+              onPress={() =>
+                navigation.navigate('Detail', {
+                  film: {
+                    imdbID: item.imdbID,
+                    Title: item.titre,
+                    Year: item.annee,
+                    Poster: item.poster,
+                    user_note: item.note,
+                    user_comment: item.commentaire,
+                  },
+                })
+              }
+            />
+
+            {item.commentaire ? (
+              <View style={styles.commentContainer}>
+                <Text style={styles.commentLabel}>Commentaire :</Text>
+                <Text style={styles.commentText}>{item.commentaire}</Text>
+              </View>
+            ) : null}
           </View>
         )}
         ListEmptyComponent={<Text style={styles.emptyText}>{films.length === 0 ? "Vous n'avez pas encore noté de films." : 'Aucun film ne correspond à votre recherche.'}</Text>}
@@ -213,37 +392,244 @@ export default function ProfileScreen({ navigation }) {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#141414' },
-  header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', padding: 15, borderBottomWidth: 1, borderBottomColor: '#333' },
-  welcomeText: { color: '#fff', fontSize: 18, fontWeight: 'bold' },
-  logoutButton: { padding: 8, borderRadius: 5 },
-  logoutText: { color: '#E50914', fontSize: 16, fontWeight: 'bold' },
-  watchListNavButton: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', backgroundColor: '#333', paddingVertical: 12, marginHorizontal: 10, marginTop: 15, borderRadius: 8 },
-  watchListNavButtonText: { color: '#fff', fontSize: 16, fontWeight: 'bold', marginLeft: 10 },
-  searchInput: { backgroundColor: '#333', color: '#fff', padding: 10, marginHorizontal: 10, marginTop: 10, borderRadius: 8, fontSize: 16 },
-  sortControlsContainer: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 10, marginTop: 10, marginBottom: 5, borderBottomWidth: 1, borderBottomColor: '#333', paddingBottom: 8 },
-  sortLabel: { color: '#ccc', fontSize: 14, marginRight: 10, fontWeight: 'bold' },
-  sortButton: { flexDirection: 'row', alignItems: 'center', paddingVertical: 4, paddingHorizontal: 10, borderRadius: 15, backgroundColor: '#333', marginRight: 8 },
-  activeSortButton: { backgroundColor: '#E50914' },
-  sortButtonText: { color: '#fff', fontSize: 14 },
-  activeSortButtonText: { color: '#fff', fontWeight: 'bold' },
-  sortIcon: { marginLeft: 4 },
-  noteFilterScrollView: { paddingVertical: 10, maxHeight: 60 },
-  noteFilterContainer: { flexDirection: 'row', paddingHorizontal: 10, alignItems: 'center' },
-  noteFilterButton: { backgroundColor: '#333', paddingVertical: 6, paddingHorizontal: 12, borderRadius: 15, marginRight: 8 },
-  activeNoteFilterButton: { backgroundColor: '#FFD700' },
-  noteFilterText: { color: '#fff', fontSize: 14, fontWeight: '600' },
-  activeNoteFilterText: { color: '#141414', fontWeight: 'bold' },
-  filmCardWrapper: { position: 'relative', marginBottom: 15, marginHorizontal: 10, backgroundColor: '#1c1c1c', borderRadius: 10, padding: 10 },
-  deleteButton: { position: 'absolute', top: 10, right: 10, backgroundColor: '#E50914', width: 28, height: 28, borderRadius: 14, justifyContent: 'center', alignItems: 'center', zIndex: 2 },
-  deleteButtonText: { color: '#fff', fontWeight: 'bold', fontSize: 16, lineHeight: 18 },
-  commentContainer: { marginTop: 8, backgroundColor: '#222', borderRadius: 6, padding: 8 },
-  commentLabel: { color: '#FFD700', fontSize: 12, fontWeight: 'bold', marginBottom: 4 },
-  commentText: { color: '#ddd', fontSize: 14 },
-  emptyText: { color: '#888', textAlign: 'center', marginTop: 50 },
-  popupButtonsContainer: { flexDirection: 'row', justifyContent: 'space-around', marginTop: 10, paddingHorizontal: 10, width: '60%' },
-  popupButton: { paddingHorizontal: 15, paddingVertical: 8, borderRadius: 8, marginHorizontal: 5 },
-  confirmDeleteButton: { backgroundColor: '#990000' },
-  cancelButton: { backgroundColor: '#555' },
-  popupButtonText: { color: '#fff', fontWeight: 'bold', textAlign: 'center' },
+  container: {
+    flex: 1,
+    backgroundColor: '#141414',
+  },
+  header: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    padding: 15,
+    borderBottomWidth: 1,
+    borderBottomColor: '#333',
+  },
+  welcomeText: {
+    color: '#fff',
+    fontSize: 18,
+    fontWeight: 'bold',
+  },
+  logoutButton: {
+    padding: 8,
+    borderRadius: 5,
+  },
+  logoutText: {
+    color: '#E50914',
+    fontSize: 16,
+    fontWeight: 'bold',
+  },
+  searchInput: {
+    backgroundColor: '#333',
+    color: '#fff',
+    padding: 10,
+    marginHorizontal: 10,
+    marginTop: 10,
+    borderRadius: 8,
+    fontSize: 16,
+  },
+  
+  noteFilterControlsContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 10,
+    paddingVertical: 10, 
+    borderBottomWidth: 1,
+    borderBottomColor: '#333',
+  },
+  noteSelectorsWrapper: {
+    flexDirection: 'row',
+    flexWrap: 'wrap', 
+    flexShrink: 1, 
+  },
+  filterLabel: {
+    color: '#ccc',
+    fontSize: 14,
+    marginRight: 10,
+    fontWeight: 'bold',
+    flexShrink: 0, 
+  },
+  selectBox: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#333',
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+    borderRadius: 8,
+    marginRight: 8,
+    minWidth: 80, 
+    justifyContent: 'space-between',
+  },
+  selectBoxText: {
+    color: '#fff',
+    fontSize: 14,
+    fontWeight: '600',
+  },
+  
+  modalOverlay: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: 'rgba(0, 0, 0, 0.7)',
+  },
+  modalContentWrapper: {
+    backgroundColor: '#1c1c1c',
+    borderRadius: 10,
+    padding: 20,
+    width: '80%',
+    maxHeight: '70%',
+  },
+  modalTitle: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    color: '#fff',
+    marginBottom: 10,
+    textAlign: 'center',
+    borderBottomWidth: 1,
+    borderBottomColor: '#333',
+    paddingBottom: 10,
+  },
+  modalOptionsScrollView: {
+    maxHeight: 250, 
+  },
+  modalOptionButton: {
+    paddingVertical: 10, 
+    paddingHorizontal: 15,
+    borderRadius: 5,
+    marginVertical: 2,
+    alignItems: 'center',
+  },
+  modalOptionText: {
+    color: '#fff',
+    fontSize: 16,
+  },
+  activeSelectOptionButton: {
+    backgroundColor: '#E50914', 
+  },
+  activeSelectOptionText: {
+    color: '#fff',
+    fontWeight: 'bold',
+  },
+
+  sortControlsContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 10,
+    marginBottom: 5, 
+    borderBottomWidth: 1,
+    borderBottomColor: '#333',
+    paddingBottom: 8,
+    paddingTop: 8, 
+  },
+  sortButtonsWrapper: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flexShrink: 1,
+  },
+  sortLabel: {
+    color: '#ccc',
+    fontSize: 14,
+    marginRight: 10,
+    fontWeight: 'bold',
+    flexShrink: 0,
+  },
+  sortButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 4,
+    paddingHorizontal: 10,
+    borderRadius: 15,
+    backgroundColor: '#333',
+    marginRight: 8,
+  },
+  activeSortButton: {
+    backgroundColor: '#E50914',
+  },
+  sortButtonText: {
+    color: '#fff',
+    fontSize: 14,
+  },
+  activeSortButtonText: {
+    color: '#fff',
+    fontWeight: 'bold',
+  },
+  sortIcon: {
+    marginLeft: 4,
+  },  
+  filmCardWrapper: {
+    position: 'relative',
+    marginBottom: 15,
+    marginHorizontal: 10,
+    backgroundColor: '#1c1c1c',
+    borderRadius: 10,
+    padding: 10,
+    shadowColor: '#000',
+    shadowOpacity: 0.2,
+    shadowOffset: { width: 0, height: 2 },
+    shadowRadius: 4,
+    elevation: 3,
+  },
+  deleteButton: {
+    position: 'absolute',
+    top: 10,
+    right: 10,
+    backgroundColor: '#E50914',
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    justifyContent: 'center',
+    alignItems: 'center',
+    zIndex: 2,
+  },
+  deleteButtonText: {
+    color: '#fff',
+    fontWeight: 'bold',
+    fontSize: 16,
+    lineHeight: 18,
+  },
+  commentContainer: {
+    marginTop: 8,
+    backgroundColor: '#222',
+    borderRadius: 6,
+    padding: 8,
+  },
+  commentLabel: {
+    color: '#FFD700',
+    fontSize: 12,
+    fontWeight: 'bold',
+    marginBottom: 4,
+  },
+  commentText: {
+    color: '#ddd',
+    fontSize: 14,
+  },
+  emptyText: {
+    color: '#888',
+    textAlign: 'center',
+    marginTop: 50,
+  },
+  popupButtonsContainer: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginTop: 10,
+    paddingHorizontal: 10,
+  },
+  popupButton: {
+    paddingHorizontal: 15,
+    paddingVertical: 8,
+    borderRadius: 8,
+    marginHorizontal: 5,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  confirmDeleteButton: {
+    backgroundColor: '#990000',
+  },
+  cancelButton: {
+    backgroundColor: '#555',
+  },
+  popupButtonText: {
+    color: '#fff',
+    fontWeight: 'bold',
+    textAlign: 'center',
+  },
 });

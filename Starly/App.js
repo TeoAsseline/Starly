@@ -13,7 +13,7 @@ import ConnexionScreen from './screens/ConnexionScreen';
 import RechercheScreen from './screens/RechercheScreen';
 import ProfileScreen from './screens/ProfileScreen';
 import DetailScreen from './screens/DetailScreen';
-import WatchlistScreen from './screens/WatchlistScreen'; // NOUVEL IMPORT
+import WatchlistScreen from './screens/WatchlistScreen';
 
 const Stack = createNativeStackNavigator();
 const Tab = createBottomTabNavigator();
@@ -50,18 +50,27 @@ function SearchStack() {
   );
 }
 
-// Pile de navigation pour l'onglet "Profil" (MISE À JOUR)
-function ProfileStack() {
+function WatchlistStack() {
   return (
     <Stack.Navigator screenOptions={stackNavigatorOptions}>
-      <Stack.Screen name="ProfileHome" component={ProfileScreen} options={{ headerTitle: () => <HeaderTitleWithLogo title="Mes Films Notés" /> }} />
-      {/* ÉCRAN "À REGARDER" AJOUTÉ ICI */}
-      <Stack.Screen name="Watchlist" component={WatchlistScreen} options={{ headerTitle: () => <HeaderTitleWithLogo title="Films à Regarder" /> }} />
+      <Stack.Screen name="WatchlistHome" component={WatchlistScreen} options={{ headerTitle: () => <HeaderTitleWithLogo title="Ma Watchlist" /> }} />
       <Stack.Screen name="Detail" component={DetailScreen} options={({ route }) => ({ headerTitle: () => <HeaderTitleWithLogo title={route.params.film.Title || route.params.film.title || 'Détail'} /> })} />
     </Stack.Navigator>
   );
 }
 
+// Pile de navigation pour l'onglet "Profil"
+function ProfileStack() {
+  return (
+    <Stack.Navigator screenOptions={stackNavigatorOptions}>
+      <Stack.Screen name="ProfileHome" component={ProfileScreen} options={{ headerTitle: () => <HeaderTitleWithLogo title="Mes Films Notés" /> }} />
+      {/* L'écran "Watchlist" a été retiré d'ici pour devenir un onglet principal */}
+      <Stack.Screen name="Detail" component={DetailScreen} options={({ route }) => ({ headerTitle: () => <HeaderTitleWithLogo title={route.params.film.Title || route.params.film.title || 'Détail'} /> })} />
+    </Stack.Navigator>
+  );
+}
+
+// MODIFIÉ : Ajout du nouvel onglet dans la barre de navigation principale
 function MainAppTabs() {
   return (
     <Tab.Navigator
@@ -69,8 +78,13 @@ function MainAppTabs() {
         headerShown: false,
         tabBarIcon: ({ focused, color, size }) => {
           let iconName;
-          if (route.name === 'Recherche') iconName = focused ? 'search' : 'search-outline';
-          else if (route.name === 'Profil') iconName = focused ? 'person' : 'person-outline';
+          if (route.name === 'Recherche') {
+            iconName = focused ? 'search' : 'search-outline';
+          } else if (route.name === 'Watchlist') { // NOUVEAU
+            iconName = focused ? 'list' : 'list-outline';
+          } else if (route.name === 'Profil') {
+            iconName = focused ? 'person' : 'person-outline';
+          }
           return <Ionicons name={iconName} size={size} color={color} />;
         },
         tabBarActiveTintColor: '#E50914',
@@ -79,6 +93,7 @@ function MainAppTabs() {
       })}
     >
       <Tab.Screen name="Recherche" component={SearchStack} />
+      <Tab.Screen name="Watchlist" component={WatchlistStack} />
       <Tab.Screen name="Profil" component={ProfileStack} />
     </Tab.Navigator>
   );
