@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useContext } from 'react';
+import React, { useState, useEffect, useContext, useRef } from 'react';
 import {
   StyleSheet,
   Text,
@@ -12,118 +12,127 @@ import { showMessage } from 'react-native-flash-message';
 import StarRating from '../components/StarRating';
 import { saveFilm, getFilmNote } from '../database/db';
 import { AuthContext } from '../App';
+import { Ionicons } from '@expo/vector-icons';
 
-export default function DetailScreen({ route, navigation }) {
+export default function DetailScreen({ route }) {
   const { user } = useContext(AuthContext);
   const { film } = route.params;
 
   const [note, setNote] = useState(0);
   const [commentaire, setCommentaire] = useState('');
+  const [aRegarder, setARegarder] = useState(false);
   const [loading, setLoading] = useState(true);
 
-  // Identifiant universel (OMDB = imdbID, TMDB = id)
   const filmId = film.imdbID || film.id?.toString();
 
-  // URL de l'affiche, avec gestion du "N/A"
   const posterUrl =
     film.Poster && film.Poster !== 'N/A'
       ? film.Poster
       : film.poster_path
       ? `https://image.tmdb.org/t/p/w500${film.poster_path}`
-      : 'https://via.placeholder.com/200/141414/FFFFFF/?text=Pas+d\'affiche';
+      : "https://via.placeholder.com/200/141414/FFFFFF/?text=Pas+d'affiche";
 
-  // Chargement de la note existante
+  const saveTimeout = useRef(null); // debounce commentaire
+
   useEffect(() => {
-    async function loadExistingNote() {
+    async function loadExistingData() {
       if (!user || !filmId) {
         setLoading(false);
         return;
       }
-
       try {
         const existingFilm = await getFilmNote(user.id, filmId);
         if (existingFilm) {
           setNote(existingFilm.note || 0);
           setCommentaire(existingFilm.commentaire || '');
+          setARegarder(!!existingFilm.a_regarder);
         }
       } catch (error) {
-        console.error('Erreur lors du chargement de la note:', error);
+        console.error('Erreur chargement film:', error);
       } finally {
         setLoading(false);
       }
     }
-    loadExistingNote();
+    loadExistingData();
   }, [user, filmId]);
 
-  // Sauvegarde du film et de la note
-  const handleSave = async () => {
-    if (!user) {
-      showMessage({
-        message: 'Action non autorisée',
-        description: 'Vous devez être connecté pour noter un film.',
-        type: 'danger',
-      });
-      return;
-    }
+  const autoSave = async (newValues) => {
+    if (!user || !filmId) return;
 
-    if (!note || note <= 0) {
-      showMessage({
-        message: 'Note manquante',
-        description: 'Veuillez attribuer au moins une demi-étoile (0,5/10).',
-        type: 'warning',
-      });
-      return;
-    }
-
-    if (!filmId) {
-      showMessage({
-        message: 'Film invalide',
-        description: 'Impossible d’enregistrer ce film (ID manquant).',
-        type: 'danger',
-      });
-      return;
-    }
+    const filmData = {
+      imdbID: filmId,
+      titre: film.Title || film.title || 'Titre inconnu',
+      note: newValues.note ?? note,
+      commentaire: newValues.commentaire ?? commentaire,
+      a_regarder: newValues.a_regarder ?? aRegarder,
+      poster: posterUrl,
+      annee:
+        film.Year ||
+        (film.release_date
+          ? new Date(film.release_date).getFullYear().toString()
+          : 'N/A'),
+    };
 
     try {
-      const filmData = {
-        imdbID: filmId,
-        titre: film.Title || film.title || 'Titre inconnu',
-        note,
-        commentaire,
-        poster: posterUrl,
-        annee:
-          film.Year ||
-          (film.release_date
-            ? new Date(film.release_date).getFullYear().toString()
-            : 'N/A'),
-      };
-
-      const operationType = await saveFilm(user.id, filmData);
-
-      const successMessage =
-        operationType === 'UPDATE'
-          ? 'Votre note et votre commentaire ont été mis à jour !'
-          : 'Le film a été ajouté à votre liste !';
-
-      showMessage({
-        message: 'Succès de l’enregistrement',
-        description: successMessage,
-        type: 'success',
-      });
-
-      // Petit délai pour laisser le message s’afficher
-      setTimeout(() => navigation.goBack(), 1000);
+      await saveFilm(user.id, filmData);
     } catch (error) {
-      console.error('Erreur lors de l’enregistrement du film:', error);
+      showMessage({ message: 'Erreur de sauvegarde', type: 'danger' });
+    }
+  };
+
+  // 👁 Flip direct pour le bouton "À voir"
+  const handleToggleARegarder = async () => {
+    if (!aRegarder && note > 0) {
+      // Cas : le film a une note et on veut le mettre "à voir" → on supprime la note
+      setARegarder(true);
+      setNote(0);
+      setCommentaire('');
+      await autoSave({ a_regarder: true, note: 0, commentaire: '' });
       showMessage({
-        message: 'Erreur d’enregistrement',
-        description:
-          'Une erreur est survenue lors de l’enregistrement. Veuillez réessayer.',
-        type: 'danger',
-        autoHide: true,
-        duration: 5000,
+        message: "Le film a été ajouté dans les films 'À voir'",
+        type: 'info',
+      });
+    } else if (aRegarder) {
+      // Cas : on retire de "à voir"
+      setARegarder(false);
+      await autoSave({ a_regarder: false });
+      showMessage({
+        message: "Le film a été retiré de la liste 'À voir'",
+        type: 'info',
+      });
+    } else {
+      // Cas simple : film sans note, on l’ajoute à “à voir”
+      setARegarder(true);
+      await autoSave({ a_regarder: true });
+      showMessage({
+        message: "Le film a été ajouté dans les films 'À voir'",
+        type: 'info',
       });
     }
+  };
+
+  // ⭐ Quand on note → on retire le film de "à voir"
+  const handleRatingChange = async (newNote) => {
+    setNote(newNote);
+    if (newNote > 0 && aRegarder) {
+      setARegarder(false);
+      showMessage({
+        message: "Le film a été retiré de la liste 'À voir'",
+        type: 'info',
+      });
+      await autoSave({ note: newNote, a_regarder: false });
+    } else {
+      await autoSave({ note: newNote });
+    }
+  };
+
+  // 💬 Debounce pour commentaire
+  const handleCommentChange = (text) => {
+    setCommentaire(text);
+    if (saveTimeout.current) clearTimeout(saveTimeout.current);
+    saveTimeout.current = setTimeout(() => {
+      autoSave({ commentaire: text });
+    }, 800);
   };
 
   if (loading) {
@@ -137,108 +146,98 @@ export default function DetailScreen({ route, navigation }) {
   return (
     <ScrollView style={styles.container}>
       <Image source={{ uri: posterUrl }} style={styles.poster} />
-
       <View style={styles.content}>
         <Text style={styles.title}>{film.Title || film.title}</Text>
         <Text style={styles.description}>
           {film.Plot || film.overview || 'Aucune description disponible.'}
         </Text>
 
-        {/* Section Note */}
-        <View style={styles.ratingSection}>
-          <Text style={styles.sectionTitle}>Votre note</Text>
-          <StarRating rating={note} onRatingChange={setNote} />
-          {note > 0 && <Text style={styles.ratingValue}>{note}/10</Text>}
+        <View style={styles.actionSection}>
+          <TouchableOpacity
+            style={styles.watchListButton}
+            onPress={handleToggleARegarder}
+          >
+            <Ionicons
+              name={aRegarder ? 'eye-off' : 'eye'}
+              size={24}
+              color={aRegarder ? '#E50914' : '#fff'}
+            />
+          </TouchableOpacity>
         </View>
 
-        {/* Section Commentaire */}
+        <View style={styles.ratingSection}>
+          <Text style={styles.sectionTitle}>Votre note</Text>
+          <StarRating rating={note} onRatingChange={handleRatingChange} />
+          {note > 0 && (
+            <Text style={styles.ratingValue}>{note}/10</Text>
+          )}
+        </View>
+
         <View style={styles.commentSection}>
           <Text style={styles.sectionTitle}>Votre commentaire</Text>
           <TextInput
-            style={styles.commentInput}
-            placeholder="Ajoutez un commentaire..."
+            style={[
+              styles.commentInput,
+              { backgroundColor: aRegarder ? '#222' : '#333' },
+            ]}
+            placeholder={
+              aRegarder
+                ? 'Notez le film pour pouvoir commenter'
+                : 'Ajoutez un commentaire...'
+            }
             placeholderTextColor="#888"
             multiline
-            keyboardAppearance="dark"
             value={commentaire}
-            onChangeText={setCommentaire}
+            onChangeText={handleCommentChange}
+            editable={!aRegarder}
           />
         </View>
-
-        {/* Bouton Enregistrer */}
-        <TouchableOpacity style={styles.saveButton} onPress={handleSave}>
-          <Text style={styles.saveButtonText}>Enregistrer ma note</Text>
-        </TouchableOpacity>
       </View>
     </ScrollView>
   );
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: '#141414',
-  },
-  centered: {
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  poster: {
-    width: '100%',
-    height: 300,
-    resizeMode: 'cover',
-  },
-  content: {
-    padding: 20,
-  },
-  title: {
-    color: '#fff',
-    fontSize: 28,
-    fontWeight: 'bold',
-    marginBottom: 10,
-  },
+  container: { flex: 1, backgroundColor: '#141414' },
+  centered: { justifyContent: 'center', alignItems: 'center' },
+  poster: { width: '100%', height: 300, resizeMode: 'cover' },
+  content: { padding: 20 },
+  title: { color: '#fff', fontSize: 28, fontWeight: 'bold', marginBottom: 10 },
   description: {
     color: '#ccc',
     fontSize: 16,
     lineHeight: 24,
-  },
-  ratingSection: {
-    marginVertical: 30,
-    alignItems: 'center',
+    marginBottom: 20,
   },
   sectionTitle: {
     color: '#fff',
     fontSize: 20,
     fontWeight: 'bold',
     marginBottom: 15,
+    alignSelf: 'flex-start',
   },
+  actionSection: {
+    marginVertical: 10,
+    alignItems: 'center',
+    borderBottomWidth: 1,
+    borderBottomColor: '#333',
+    paddingBottom: 20,
+  },
+  watchListButton: { padding: 10 },
+  ratingSection: { marginVertical: 20, alignItems: 'center' },
   ratingValue: {
     color: '#FFD700',
     fontSize: 16,
-    marginTop: 5,
+    marginTop: 10,
     fontWeight: 'bold',
   },
-  commentSection: {
-    marginBottom: 30,
-  },
+  commentSection: { marginBottom: 30 },
   commentInput: {
-    backgroundColor: '#333',
     color: '#fff',
     borderRadius: 8,
     padding: 15,
     minHeight: 100,
     textAlignVertical: 'top',
     fontSize: 16,
-  },
-  saveButton: {
-    backgroundColor: '#E50914',
-    padding: 18,
-    borderRadius: 8,
-    alignItems: 'center',
-  },
-  saveButtonText: {
-    color: '#fff',
-    fontSize: 18,
-    fontWeight: 'bold',
   },
 });

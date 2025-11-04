@@ -2,17 +2,12 @@ import * as SQLite from 'expo-sqlite';
 
 let db = null;
 
-/**
- * Initialise la base SQLite et crée les tables User & Film
- */
 export async function initDatabase() {
-  if (db) return db; // Retourne l'instance existante si déjà ouverte
+  if (db) return db;
 
   try {
-    // Ouvre ou crée la base
     db = await SQLite.openDatabaseAsync('films.db');
 
-    // Crée la table User
     await db.execAsync(`
       CREATE TABLE IF NOT EXISTS User (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -22,7 +17,6 @@ export async function initDatabase() {
       );
     `);
 
-    // Crée la table Film
     await db.execAsync(`
       CREATE TABLE IF NOT EXISTS Film (
         idFilm INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -34,11 +28,17 @@ export async function initDatabase() {
         dateVisionnage TEXT,
         poster TEXT,
         annee TEXT,
+        a_regarder INTEGER DEFAULT 0,
         FOREIGN KEY (idUser) REFERENCES User(id),
-        -- AJOUT : Clé composite UNIQUE pour (idUser, imdbID)
         UNIQUE(idUser, imdbID) 
       );
     `);
+
+    const columns = await db.getAllAsync(`PRAGMA table_info(Film)`);
+    if (!columns.some(col => col.name === 'a_regarder')) {
+      console.log('Mise à jour du schéma: Ajout de la colonne "a_regarder"');
+      await db.execAsync('ALTER TABLE Film ADD COLUMN a_regarder INTEGER DEFAULT 0');
+    }
 
     console.log('✅ Tables créées ou déjà existantes');
     return db;
@@ -50,13 +50,6 @@ export async function initDatabase() {
 
 // --- Fonctions Utilisateur (User) ---
 
-/**
- * Enregistre un nouvel utilisateur.
- * @param {string} nom
- * @param {string} login
- * @param {string} password
- * @returns {Promise<number>} L'ID du nouvel utilisateur.
- */
 export async function registerUser(nom, login, password) {
   await initDatabase();
   const result = await db.runAsync(
@@ -66,133 +59,132 @@ export async function registerUser(nom, login, password) {
   return result.lastInsertRowId;
 }
 
-/**
- * Tente de connecter un utilisateur.
- * @param {string} login
- * @param {string} password
- * @returns {Promise<object|null>} L'objet utilisateur ou null si non trouvé.
- */
 export async function loginUser(login, password) {
   await initDatabase();
-  const user = await db.getFirstAsync(
+  return await db.getFirstAsync(
     'SELECT * FROM User WHERE login = ? AND password = ?',
     [login, password]
   );
-  return user;
 }
 
 // --- Fonctions Film (Film) ---
 
-/**
- * Ajoute ou met à jour un film noté par l'utilisateur.
- * @param {number} idUser
- * @param {object} filmData - Contient imdbID, titre, note, commentaire, poster, annee.
- * @returns {Promise<void>}
- */
 export async function saveFilm(idUser, filmData) {
   await initDatabase();
-  
-  // Vérifie si le film existe déjà pour cet utilisateur
+
   const existingFilm = await db.getFirstAsync(
     'SELECT idFilm FROM Film WHERE idUser = ? AND imdbID = ?',
     [idUser, filmData.imdbID]
   );
 
+  // Si le film est marqué "à voir", on remet à zéro les champs
+  const isARegarder = !!filmData.a_regarder;
+  const noteToSave = isARegarder ? null : filmData.note ?? null;
+  const commentaireToSave = isARegarder ? '' : filmData.commentaire ?? '';
+  const dateVisionnageToSave = isARegarder ? null : new Date().toISOString();
+
+  console.log('💾 [DEBUG] Sauvegarde film:', {
+    idUser,
+    titre: filmData.titre,
+    imdbID: filmData.imdbID,
+    isARegarder,
+    noteToSave,
+    commentaireToSave,
+    dateVisionnageToSave,
+  });
+
   if (existingFilm) {
-    // Mise à jour
     await db.runAsync(
       `UPDATE Film 
-       SET note = ?, commentaire = ?, dateVisionnage = ?, titre = ?, poster = ?, annee = ?
+       SET 
+         note = ?, 
+         commentaire = ?, 
+         dateVisionnage = ?, 
+         titre = ?, 
+         poster = ?, 
+         annee = ?, 
+         a_regarder = ?
        WHERE idFilm = ?`,
       [
-        filmData.note, 
-        filmData.commentaire, 
-        new Date().toISOString(), // Met à jour la date de visionnage
+        noteToSave,
+        commentaireToSave,
+        dateVisionnageToSave,
         filmData.titre,
         filmData.poster,
         filmData.annee,
-        existingFilm.idFilm
+        isARegarder ? 1 : 0,
+        existingFilm.idFilm,
       ]
     );
-    console.log(`Film mis à jour: ${filmData.titre}`);
+    console.log('✅ [DEBUG] Film mis à jour avec succès');
     return "UPDATE";
   } else {
-    // Ajout
     await db.runAsync(
-      `INSERT INTO Film (idUser, imdbID, titre, note, commentaire, dateVisionnage, poster, annee) 
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+      `INSERT INTO Film 
+        (idUser, imdbID, titre, note, commentaire, dateVisionnage, poster, annee, a_regarder)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [
-        idUser, 
-        filmData.imdbID, 
-        filmData.titre, 
-        filmData.note, 
-        filmData.commentaire, 
-        new Date().toISOString(), 
+        idUser,
+        filmData.imdbID,
+        filmData.titre,
+        noteToSave,
+        commentaireToSave,
+        dateVisionnageToSave,
         filmData.poster,
-        filmData.annee
+        filmData.annee,
+        isARegarder ? 1 : 0,
       ]
     );
-    console.log(`Nouveau film ajouté: ${filmData.titre}`);
+    console.log('✅ [DEBUG] Nouveau film inséré');
     return "INSERT";
   }
 }
 
-/**
- * Récupère tous les films notés par un utilisateur.
- * @param {number} idUser
- * @returns {Promise<Array<object>>} Liste des films.
- */
+
+// Ne retourne que les films VUS et notés
 export async function getFilmsByUser(idUser) {
   await initDatabase();
-  const films = await db.getAllAsync(
-    'SELECT * FROM Film WHERE idUser = ? ORDER BY dateVisionnage DESC',
+  return await db.getAllAsync(
+    'SELECT * FROM Film WHERE idUser = ? AND (a_regarder = 0 OR a_regarder IS NULL) ORDER BY dateVisionnage DESC',
     [idUser]
   );
-  return films;
 }
 
-/**
- * Supprime un film noté.
- * @param {number} idFilm
- * @returns {Promise<void>}
- */
+// NOUVEAU : Retourne uniquement les films "À Regarder"
+export async function getFilmsARegarderByUser(idUser) {
+    await initDatabase();
+    return await db.getAllAsync(
+      'SELECT * FROM Film WHERE idUser = ? AND a_regarder = 1 ORDER BY dateVisionnage DESC',
+      [idUser]
+    );
+}
+
 export async function deleteFilm(idFilm) {
   await initDatabase();
   await db.runAsync('DELETE FROM Film WHERE idFilm = ?', [idFilm]);
-  console.log(`Film avec id ${idFilm} supprimé.`);
 }
 
-/**
- * Récupère les statistiques de l'utilisateur.
- * @param {number} idUser
- * @returns {Promise<object>} Statistiques (totalFilms, moyenneNotes).
- */
+// Corrigé pour ne calculer les stats que sur les films vus
 export async function getStats(idUser) {
   await initDatabase();
   const stats = await db.getFirstAsync(
     `SELECT COUNT(idFilm) as totalFilms, AVG(note) as moyenneNotes 
      FROM Film 
-     WHERE idUser = ?`,
+     WHERE idUser = ? AND (a_regarder = 0 OR a_regarder IS NULL) AND note IS NOT NULL`,
     [idUser]
   );
   
   return {
     totalFilms: stats.totalFilms || 0,
+    // La moyenne est calculée sur 10, le toFixed(2) la formate
     moyenneNotes: stats.moyenneNotes ? parseFloat(stats.moyenneNotes).toFixed(2) : 0,
   };
 }
 
-/**
- * Récupère la note et le commentaire d'un film spécifique pour un utilisateur.
- * @param {number} idUser
- * @param {string} imdbID
- * @returns {Promise<object|null>} Le film noté ou null.
- */
 export async function getFilmNote(idUser, imdbID) {
     await initDatabase();
-    const film = await db.getFirstAsync(
-        'SELECT note, commentaire, idFilm FROM Film WHERE idUser = ? AND imdbID = ?',
+    return await db.getFirstAsync(
+        'SELECT note, commentaire, idFilm, a_regarder FROM Film WHERE idUser = ? AND imdbID = ?',
         [idUser, imdbID]
     );
-    return film;
 }
