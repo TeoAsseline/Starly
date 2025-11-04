@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
-import { StyleSheet, View, TextInput, FlatList, Text, ActivityIndicator, Alert } from 'react-native';
+import { StyleSheet, View, TextInput, FlatList, Text, ActivityIndicator } from 'react-native';
+import { showMessage } from 'react-native-flash-message'; 
 import FilmCard from '../components/FilmCard'; 
 import { searchMoviesByTitle, getMovieDetails } from '../api'; // Import des fonctions API
 
@@ -17,10 +18,26 @@ export default function RechercheScreen({ navigation }) {
     setLoading(true);
     try {
       const resultats = await searchMoviesByTitle(query);
-      setFilms(resultats);
+      
+      if (resultats && resultats.length > 0) {
+        setFilms(resultats);
+      } else {
+         // Notification si aucun résultat n'est trouvé
+        showMessage({
+          message: "Aucun Résultat",
+          description: `Aucun film trouvé pour la recherche : "${query}".`,
+          type: "info",
+        });
+        setFilms([]);
+      }
+      
     } catch (error) {
       console.error("Erreur lors de la recherche:", error);
-      Alert.alert("Erreur", "Impossible de contacter l'API de films.");
+      showMessage({
+        message: "Erreur API",
+        description: "Impossible de contacter l'API de films. Vérifiez votre connexion.",
+        type: "danger",
+      });
       setFilms([]);
     } finally {
       setLoading(false);
@@ -36,11 +53,19 @@ export default function RechercheScreen({ navigation }) {
             // Navigue vers la page de détail en passant les données complètes
             navigation.navigate('Detail', { film: details });
         } else {
-            Alert.alert("Erreur", "Impossible de récupérer les détails du film.");
+            showMessage({
+              message: "Détails Manquants",
+              description: "Impossible de récupérer les détails complets du film sélectionné.",
+              type: "danger",
+            });
         }
     } catch (error) {
         console.error("Erreur lors de la récupération des détails:", error);
-        Alert.alert("Erreur", "Une erreur est survenue.");
+        showMessage({
+          message: "Erreur Système",
+          description: "Une erreur est survenue lors de la récupération des détails.",
+          type: "danger",
+        });
     } finally {
         setLoading(false);
     }
@@ -70,6 +95,7 @@ export default function RechercheScreen({ navigation }) {
           )}
           ListEmptyComponent={
             query.trim() !== '' && films.length === 0 && !loading ? (
+              // On laisse le message d'erreur si la recherche n'a rien donné
               <Text style={styles.emptyText}>Aucun film trouvé pour "{query}".</Text>
             ) : (
               <Text style={styles.emptyText}>Commencez à taper un titre pour rechercher.</Text>

@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useContext, useCallback } from 'react';
-import { StyleSheet, Text, View, FlatList, ActivityIndicator, Alert, RefreshControl } from 'react-native';
+import { StyleSheet, Text, View, FlatList, ActivityIndicator, RefreshControl } from 'react-native';
+import { showMessage } from 'react-native-flash-message'; 
 import { useFocusEffect } from '@react-navigation/native';
 import FilmCard from '../components/FilmCard'; 
 import { getFilmsByUser, deleteFilm, getStats } from '../database/db';
@@ -64,7 +65,11 @@ export default function ProfileScreen({ navigation }) {
       setStats(userStats);
     } catch (error) {
       console.error("Erreur lors du chargement des films/stats:", error);
-      Alert.alert("Erreur", "Impossible de charger vos films.");
+      showMessage({
+        message: "Erreur de chargement",
+        description: "Impossible de charger vos films et statistiques.",
+        type: "danger",
+      });
     } finally {
       setLoading(false);
       setRefreshing(false);
@@ -77,30 +82,43 @@ export default function ProfileScreen({ navigation }) {
     }, [loadFilmsAndStats])
   );
 
+  const performDelete = async (idFilm) => {
+    try {
+        await deleteFilm(idFilm);
+        showMessage({
+            message: "Suppression réussie",
+            description: "La note a été retirée de votre liste.",
+            type: "success",
+        });
+        loadFilmsAndStats(); 
+    } catch (error) {
+        console.error("Erreur de suppression:", error);
+        showMessage({
+            message: "Erreur de suppression",
+            description: "Impossible de supprimer la note.",
+            type: "danger",
+        });
+    }
+  }
+
   const handleDelete = (idFilm) => {
-    Alert.alert(
-      "Confirmation",
-      "Êtes-vous sûr de vouloir supprimer cette note ?",
-      [
-        {
-          text: "Annuler",
-          style: "cancel"
-        },
-        {
-          text: "Supprimer",
-          onPress: async () => {
-            try {
-              await deleteFilm(idFilm);
-              loadFilmsAndStats(); 
-            } catch (error) {
-              console.error("Erreur de suppression:", error);
-              Alert.alert("Erreur", "Impossible de supprimer la note.");
-            }
-          },
-          style: "destructive"
-        }
-      ]
-    );
+    showMessage({
+        message: "Confirmation de suppression",
+        description: "Êtes-vous sûr de vouloir supprimer cette note ? Cette action est irréversible.",
+        type: "warning",
+        icon: "warning",
+        autoHide: false,
+        duration: 5000, 
+        // Ajout d'un bouton pour confirmer l'action
+        renderFlashMessageIcon: () => (
+            <TouchableOpacity 
+                style={styles.confirmDeleteButton}
+                onPress={() => performDelete(idFilm)}
+            >
+                <Text style={styles.confirmDeleteButtonText}>Supprimer</Text>
+            </TouchableOpacity>
+        ),
+    });
   };
 
   const handleLogout = () => {
@@ -163,7 +181,7 @@ export default function ProfileScreen({ navigation }) {
                 style={styles.deleteButton} 
                 onPress={() => handleDelete(item.idFilm)}
             >
-                <Text style={styles.deleteButtonText}>X</Text>
+              <Text style={styles.deleteButtonText}>X</Text>
             </TouchableOpacity>
           </View>
         )}
@@ -218,6 +236,17 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   deleteButtonText: {
+    color: '#fff',
+    fontWeight: 'bold',
+  },
+  confirmDeleteButton: {
+    backgroundColor: '#990000',
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 5,
+    marginLeft: 15,
+  },
+  confirmDeleteButtonText: {
     color: '#fff',
     fontWeight: 'bold',
   },

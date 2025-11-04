@@ -27,14 +27,16 @@ export async function initDatabase() {
       CREATE TABLE IF NOT EXISTS Film (
         idFilm INTEGER PRIMARY KEY AUTOINCREMENT,
         idUser INTEGER NOT NULL,
-        imdbID TEXT UNIQUE NOT NULL, -- Ajout de l'ID IMDB pour l'unicité et l'API
+        imdbID TEXT NOT NULL, 
         titre TEXT NOT NULL,
         note INTEGER,
         commentaire TEXT,
-        dateVisionnage TEXT, -- Changement de nom pour plus de clarté
+        dateVisionnage TEXT,
         poster TEXT,
         annee TEXT,
-        FOREIGN KEY (idUser) REFERENCES User(id)
+        FOREIGN KEY (idUser) REFERENCES User(id),
+        -- AJOUT : Clé composite UNIQUE pour (idUser, imdbID)
+        UNIQUE(idUser, imdbID) 
       );
     `);
 
@@ -113,6 +115,7 @@ export async function saveFilm(idUser, filmData) {
       ]
     );
     console.log(`Film mis à jour: ${filmData.titre}`);
+    return "UPDATE";
   } else {
     // Ajout
     await db.runAsync(
@@ -130,6 +133,7 @@ export async function saveFilm(idUser, filmData) {
       ]
     );
     console.log(`Nouveau film ajouté: ${filmData.titre}`);
+    return "INSERT";
   }
 }
 

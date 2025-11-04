@@ -1,7 +1,8 @@
 import React, { useState, useContext } from 'react';
-import { StyleSheet, Text, View, TextInput, TouchableOpacity, Alert } from 'react-native';
-import { loginUser, registerUser } from '../database/db'; // Import des fonctions DB
-import { AuthContext } from '../App'; // Import du contexte utilisateur
+import { StyleSheet, Text, View, TextInput, TouchableOpacity } from 'react-native';
+import { showMessage } from "react-native-flash-message"; 
+import { loginUser, registerUser } from '../database/db';
+import { AuthContext } from '../App';
 
 export default function ConnexionScreen({ navigation }) {
   const { setUser } = useContext(AuthContext);
@@ -12,37 +13,66 @@ export default function ConnexionScreen({ navigation }) {
 
   const handleLogin = async () => {
     if (!login || !password) {
-      Alert.alert("Erreur", "Veuillez entrer un login et un mot de passe.");
+      showMessage({
+        message: "Attention",
+        description: "Veuillez entrer un login et un mot de passe.",
+        type: "warning",
+      });
       return;
     }
     
     try {
       const user = await loginUser(login, password);
       if (user) {
+        showMessage({
+          message: "Connexion réussie",
+          description: `Bienvenue, ${user.nom}!`,
+          type: "success",
+        });
         setUser(user); // Met à jour l'utilisateur dans le contexte, ce qui navigue vers MainApp
       } else {
-        Alert.alert("Erreur de connexion", "Login ou mot de passe incorrect.");
+        showMessage({
+          message: "Échec de la connexion",
+          description: "Login ou mot de passe incorrect.",
+          type: "danger",
+        });
       }
     } catch (error) {
       console.error("Erreur de connexion:", error);
-      Alert.alert("Erreur", "Une erreur est survenue lors de la connexion.");
+      showMessage({
+        message: "Erreur Système",
+        description: "Une erreur est survenue lors de la connexion. Réessayez.",
+        type: "danger",
+      });
     }
   };
 
   const handleRegister = async () => {
     if (!nom || !login || !password) {
-      Alert.alert("Erreur", "Veuillez remplir tous les champs.");
+      showMessage({
+        message: "Attention",
+        description: "Veuillez remplir tous les champs.",
+        type: "warning",
+      });
       return;
     }
 
     try {
       const userId = await registerUser(nom, login, password);
-      Alert.alert("Succès", "Compte créé ! Vous pouvez maintenant vous connecter.");
+      showMessage({
+        message: "Succès de l'inscription",
+        description: "Compte créé ! Veuillez vous connecter.",
+        type: "success",
+      });
       setIsRegistering(false); // Revient à l'écran de connexion
       setNom('');
     } catch (error) {
       console.error("Erreur d'inscription:", error);
-      Alert.alert("Erreur", "Ce login est peut-être déjà utilisé.");
+      showMessage({
+        message: "Échec de l'inscription",
+        description: "Ce login est peut-être déjà utilisé ou une erreur est survenue.",
+        type: "danger",
+      });
     }
   };
 

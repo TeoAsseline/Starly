@@ -1,10 +1,12 @@
-import React, { useState, useEffect, createContext } from 'react';
+import { useState, useEffect, createContext } from 'react';
 import { NavigationContainer } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { Ionicons } from '@expo/vector-icons';
 import { StatusBar } from 'expo-status-bar';
-import { initDatabase } from './database/db'; // Import de la fonction d'initialisation
+import { View, Text } from 'react-native';
+import FlashMessage from "react-native-flash-message";
+import { initDatabase } from './database/db';
 
 // Import des écrans
 import ConnexionScreen from './screens/ConnexionScreen';
@@ -45,7 +47,7 @@ function ProfileStack() {
         component={ProfileScreen} 
         options={{ title: 'Mes Films Notés' }} 
       />
-       {/* On peut aussi naviguer vers le détail depuis le profil */}
+      {/* On peut aussi naviguer vers le détail depuis le profil */}
       <Stack.Screen 
         name="Detail" 
         component={DetailScreen}
@@ -92,7 +94,12 @@ export default function App() {
       setDbReady(true);
     }).catch(e => {
       console.error("Erreur d'initialisation de la DB:", e);
-      // Gérer l'erreur (ex: afficher un message à l'utilisateur)
+      showMessage({
+        message: "Erreur Critique",
+        description: "Impossible d'initialiser la base de données. Veuillez redémarrer l'application.",
+        type: "danger",
+        autoHide: false, // L'alerte reste jusqu'à ce que l'utilisateur la ferme
+      });
     });
   }, []);
 
@@ -127,6 +134,7 @@ export default function App() {
         </Stack.Navigator>
         <StatusBar style="light" />
       </NavigationContainer>
+      <FlashMessage position="top" /> 
     </AuthContext.Provider>
   );
 }
@@ -137,6 +145,3 @@ const stackNavigatorOptions = {
   headerTintColor: '#fff',
   headerTitleStyle: { fontWeight: 'bold' },
 };
-
-// Ajout de l'import de View et Text pour l'écran de chargement
-import { View, Text } from 'react-native';

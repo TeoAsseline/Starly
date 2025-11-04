@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useContext } from 'react';
-import { StyleSheet, Text, View, Image, ScrollView, TextInput, TouchableOpacity, Alert } from 'react-native';
-// import { Ionicons } from '@expo/vector-icons'; // Plus utilisé ici directement si vous ne l'utilisez pas ailleurs
+import { StyleSheet, Text, View, Image, ScrollView, TextInput, TouchableOpacity } from 'react-native';
+import { showMessage } from "react-native-flash-message"; 
 import StarRating from '../components/StarRating';
 import { saveFilm, getFilmNote } from '../database/db';
 import { AuthContext } from '../App';
@@ -30,6 +30,7 @@ export default function DetailScreen({ route, navigation }) {
           }
         } catch (error) {
           console.error("Erreur lors du chargement de la note:", error);
+          // Pas d'alerte critique ici, juste un échec silencieux du chargement
         }
       }
       setLoading(false);
@@ -39,12 +40,20 @@ export default function DetailScreen({ route, navigation }) {
 
   const handleSave = async () => {
     if (!user) {
-      Alert.alert("Erreur", "Vous devez être connecté pour noter un film.");
+      showMessage({
+        message: "Action non autorisée",
+        description: "Vous devez être connecté pour noter un film.",
+        type: "danger",
+      });
       return;
     }
     // Validation adaptée : 0 signifie qu'aucune étoile (même pas une demi) n'a été sélectionnée.
     if (note === 0) {
-        Alert.alert("Note manquante", "Veuillez attribuer au moins une demi-étoile.");
+        showMessage({
+          message: "Note manquante",
+          description: "Veuillez attribuer au moins une demi-étoile (0,5/10).",
+          type: "warning",
+        });
         return;
     }
 
@@ -55,16 +64,35 @@ export default function DetailScreen({ route, navigation }) {
         note: note,
         commentaire: commentaire,
         poster: posterUrl,
-        annee: film.Year || new Date(film.release_date).getFullYear().toString(),
+        // Utilisez le Year pour les films OMDB ou extrayez l'année de release_date pour TMDB
+        annee: film.Year || (film.release_date ? new Date(film.release_date).getFullYear().toString() : 'N/A'),
       };
 
-      await saveFilm(user.id, filmData);
-      Alert.alert("Succès", "Votre note et votre commentaire ont été enregistrés !");
+      // Supposons que saveFilm retourne 'UPDATE' ou 'INSERT'
+      const operationType = await saveFilm(user.id, filmData); 
+      
+      const successMessage = operationType === 'UPDATE' 
+        ? "Votre note et votre commentaire ont été mis à jour !" 
+        : "Le film a été ajouté à votre liste !";
+
+      showMessage({
+        message: "Succès de l'enregistrement",
+        description: successMessage,
+        type: "success",
+      });
+      
+      // On navigue uniquement après le succès
       navigation.goBack(); 
 
     } catch (error) {
       console.error("Erreur lors de l'enregistrement du film:", error);
-      Alert.alert("Erreur", "Une erreur est survenue lors de l'enregistrement.");
+      showMessage({
+        message: "Erreur d'enregistrement",
+        description: "Une erreur est survenue lors de l'enregistrement. Veuillez réessayer.",
+        type: "danger",
+        autoHide: true,
+        duration: 5000,
+      });
     }
   };
 
