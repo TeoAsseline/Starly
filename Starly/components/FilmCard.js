@@ -1,13 +1,18 @@
 import { StyleSheet, Text, View, Image, TouchableOpacity } from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
+import StaticStarRating from './StaticStarRating';
 
-// Ce composant reçoit les données d'un film et une fonction onPress
+/**
+ * Composant de carte pour un film.
+ * @param {object} film - Les données du film (provenant d'OMDb ou TMDB).
+ * @param {function} onPress - Fonction appelée lors du clic sur la carte.
+ * @param {number} userNote - La note de l'utilisateur sur 10 (optionnel).
+ */
 export default function FilmCard({ film, onPress, userNote }) {
   // Détermine l'URL de l'affiche
   const posterUrl = film.Poster && film.Poster !== 'N/A'
     ? film.Poster // Affiche OMDb (URL complète)
     : film.poster_path 
-      ? `https://image.tmdb.org/t/p/w500${film.poster_path}` // Affiche TMDB (path)
+      ? `https://image.tmdb.org/t/p/w500${film.poster_path}` 
       : '';
 
   // Détermine le titre et l'année
@@ -25,10 +30,15 @@ export default function FilmCard({ film, onPress, userNote }) {
       <View style={styles.info}>
         <Text style={styles.title}>{title}</Text>
         <Text style={styles.year}>{year}</Text>
-        {/* On affiche la note si elle est fournie */}
-        {userNote && (
+        
+        {/* On affiche la note de l'utilisateur si elle est fournie */}
+        {userNote !== undefined && userNote !== null && (
           <View style={styles.noteContainer}>
-            <Ionicons name="star" color="#FFD700" size={16} />
+            {/* Utilisation du composant StaticStarRating */}
+            <StaticStarRating 
+              rating={userNote} 
+              size={16} 
+            />
             <Text style={styles.noteText}>{userNote} / 10</Text>
           </View>
         )}
@@ -66,7 +76,7 @@ const styles = StyleSheet.create({
     fontSize: 14,
     marginTop: 5,
   },
-   noteContainer: {
+    noteContainer: {
     flexDirection: 'row',
     alignItems: 'center',
     marginTop: 8,
@@ -78,7 +88,7 @@ const styles = StyleSheet.create({
   },
   noteText: {
     color: '#FFD700',
-    marginLeft: 4,
+    marginLeft: 8, // Ajustement de l'espacement entre les étoiles et le texte
     fontWeight: 'bold',
   }
 });
