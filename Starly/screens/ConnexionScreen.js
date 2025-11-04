@@ -1,5 +1,5 @@
 import React, { useState, useContext } from 'react';
-import { StyleSheet, Text, View, TextInput, TouchableOpacity } from 'react-native';
+import { StyleSheet, Text, View, TextInput, TouchableOpacity, Image } from 'react-native';
 import { showMessage } from "react-native-flash-message"; 
 import { loginUser, registerUser } from '../database/db';
 import { AuthContext } from '../App';
@@ -78,6 +78,10 @@ export default function ConnexionScreen({ navigation }) {
 
   return (
     <View style={styles.container}>
+      <Image
+        source={require('../assets/icon-transparent-bg.png')}
+        style={styles.logo}
+      />
       <Text style={styles.title}>Starly</Text>
       <Text style={styles.subtitle}>Notez et archivez vos films préférés.</Text>
       
@@ -134,6 +138,12 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     padding: 20,
+  },
+  logo: {
+    width: 120,
+    height: 120,
+    resizeMode: 'contain', 
+    marginBottom: 20,
   },
   title: {
     fontSize: 48,

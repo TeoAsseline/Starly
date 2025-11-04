@@ -4,8 +4,8 @@ import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { Ionicons } from '@expo/vector-icons';
 import { StatusBar } from 'expo-status-bar';
-import { View, Text } from 'react-native';
-import FlashMessage from "react-native-flash-message";
+import { View, Text, Animated, Easing, Image, StyleSheet } from 'react-native'; // Ajouts
+import FlashMessage, { showMessage } from "react-native-flash-message";
 import { initDatabase } from './database/db';
 
 // Import des écrans
@@ -20,17 +20,49 @@ const Tab = createBottomTabNavigator();
 // Création d'un contexte pour l'utilisateur
 export const AuthContext = createContext(null);
 
+// Composant pour l'écran de chargement avec le logo qui tourne
+const Loader = () => {
+  const spinValue = new Animated.Value(0);
+
+  // Configuration de l'animation en boucle
+  Animated.loop(
+    Animated.timing(spinValue, {
+      toValue: 1,
+      duration: 20000,
+      easing: Easing.linear,
+      useNativeDriver: true,
+    })
+  ).start();
+
+  // Interpolation de la valeur pour la rotation
+  const spin = spinValue.interpolate({
+    inputRange: [0, 1],
+    outputRange: ['0deg', '3600deg'],
+  });
+
+  return (
+    <View style={styles.loaderContainer}>
+      <Animated.Image
+        style={{ width: 100, height: 100, transform: [{ rotate: spin }] }}
+        source={require('./assets/icon-transparent-bg.png')}
+      />
+      <Text style={styles.loaderText}>Chargement de l'application...</Text>
+    </View>
+  );
+};
+
+
 // Pile de navigation pour l'onglet "Recherche"
 function SearchStack() {
   return (
     <Stack.Navigator screenOptions={stackNavigatorOptions}>
-      <Stack.Screen 
-        name="RechercheHome" 
-        component={RechercheScreen} 
-        options={{ title: 'Rechercher un film' }} 
+      <Stack.Screen
+        name="RechercheHome"
+        component={RechercheScreen}
+        options={{ title: 'Rechercher un film' }}
       />
-      <Stack.Screen 
-        name="Detail" 
+      <Stack.Screen
+        name="Detail"
         component={DetailScreen}
         options={({ route }) => ({ title: route.params.film.Title || route.params.film.title || 'Détail' })}
       />
@@ -42,14 +74,14 @@ function SearchStack() {
 function ProfileStack() {
   return (
     <Stack.Navigator screenOptions={stackNavigatorOptions}>
-      <Stack.Screen 
-        name="ProfileHome" 
-        component={ProfileScreen} 
-        options={{ title: 'Mes Films Notés' }} 
+      <Stack.Screen
+        name="ProfileHome"
+        component={ProfileScreen}
+        options={{ title: 'Mes Films Notés' }}
       />
       {/* On peut aussi naviguer vers le détail depuis le profil */}
-      <Stack.Screen 
-        name="Detail" 
+      <Stack.Screen
+        name="Detail"
         component={DetailScreen}
         options={({ route }) => ({ title: route.params.film.Title || route.params.film.title || 'Détail' })}
       />
@@ -62,7 +94,7 @@ function MainAppTabs() {
   return (
     <Tab.Navigator
       screenOptions={({ route }) => ({
-        headerShown: false, 
+        headerShown: false,
         tabBarIcon: ({ focused, color, size }) => {
           let iconName;
           if (route.name === 'Recherche') {
@@ -72,7 +104,7 @@ function MainAppTabs() {
           }
           return <Ionicons name={iconName} size={size} color={color} />;
         },
-        tabBarActiveTintColor: '#E50914', 
+        tabBarActiveTintColor: '#E50914',
         tabBarInactiveTintColor: 'gray',
         tabBarStyle: { backgroundColor: '#141414', borderTopColor: '#222' },
       })}
@@ -98,18 +130,13 @@ export default function App() {
         message: "Erreur Critique",
         description: "Impossible d'initialiser la base de données. Veuillez redémarrer l'application.",
         type: "danger",
-        autoHide: false, // L'alerte reste jusqu'à ce que l'utilisateur la ferme
+        autoHide: false,
       });
     });
   }, []);
 
   if (!dbReady) {
-    // Écran de chargement simple en attendant l'initialisation de la DB
-    return (
-      <View style={{ flex: 1, backgroundColor: '#141414', justifyContent: 'center', alignItems: 'center' }}>
-        <Text style={{ color: '#fff' }}>Chargement de l'application...</Text>
-      </View>
-    );
+    return <Loader />;
   }
 
   return (
@@ -118,23 +145,23 @@ export default function App() {
         <Stack.Navigator>
           {user ? (
             // Utilisateur connecté
-            <Stack.Screen 
-              name="MainApp" 
-              component={MainAppTabs} 
-              options={{ headerShown: false }} 
+            <Stack.Screen
+              name="MainApp"
+              component={MainAppTabs}
+              options={{ headerShown: false }}
             />
           ) : (
             // Utilisateur déconnecté
-            <Stack.Screen 
-              name="Connexion" 
-              component={ConnexionScreen} 
-              options={{ headerShown: false }} 
+            <Stack.Screen
+              name="Connexion"
+              component={ConnexionScreen}
+              options={{ headerShown: false }}
             />
           )}
         </Stack.Navigator>
         <StatusBar style="light" />
       </NavigationContainer>
-      <FlashMessage position="top" /> 
+      <FlashMessage position="top" />
     </AuthContext.Provider>
   );
 }
@@ -145,3 +172,17 @@ const stackNavigatorOptions = {
   headerTintColor: '#fff',
   headerTitleStyle: { fontWeight: 'bold' },
 };
+
+// Styles pour le loader
+const styles = StyleSheet.create({
+  loaderContainer: {
+    flex: 1,
+    backgroundColor: '#141414',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  loaderText: {
+    color: '#fff',
+    marginTop: 20,
+  },
+});
