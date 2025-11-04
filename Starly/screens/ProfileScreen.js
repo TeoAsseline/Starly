@@ -89,6 +89,7 @@ export default function ProfileScreen({ navigation }) {
   useFocusEffect(
     useCallback(() => {
       loadFilmsAndStats();
+      // NOUVEAU : La popup disparaît si on quitte l'écran
       return () => {
         hideMessage();
       };
@@ -399,16 +400,16 @@ const styles = StyleSheet.create({
   popupButtonsContainer: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    marginTop: 10, 
+    marginTop: 10,
     paddingHorizontal: 10,
   },
   popupButton: {
     paddingHorizontal: 15,
     paddingVertical: 8,
     borderRadius: 8,
-    marginHorizontal: 5, 
+    marginHorizontal: 5,
     alignItems: 'center',
-    justifyContent: 'center', 
+    justifyContent: 'center',
   },
   confirmDeleteButton: {
     backgroundColor: '#990000',
@@ -419,6 +420,6 @@ const styles = StyleSheet.create({
   popupButtonText: {
     color: '#fff',
     fontWeight: 'bold',
-    textAlign: 'center',le texte au centre verticalement
+    textAlign: 'center',
   },
 });
