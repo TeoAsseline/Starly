@@ -4,7 +4,7 @@ import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { Ionicons } from '@expo/vector-icons';
 import { StatusBar } from 'expo-status-bar';
-import { View, Text, Animated, Easing, Image, StyleSheet } from 'react-native'; // Ajouts
+import { View, Text, Animated, Easing, Image, StyleSheet } from 'react-native';
 import FlashMessage, { showMessage } from "react-native-flash-message";
 import { initDatabase } from './database/db';
 
@@ -17,14 +17,11 @@ import DetailScreen from './screens/DetailScreen';
 const Stack = createNativeStackNavigator();
 const Tab = createBottomTabNavigator();
 
-// Création d'un contexte pour l'utilisateur
 export const AuthContext = createContext(null);
 
-// Composant pour l'écran de chargement avec le logo qui tourne
+// Composant pour l'écran de chargement
 const Loader = () => {
   const spinValue = new Animated.Value(0);
-
-  // Configuration de l'animation en boucle
   Animated.loop(
     Animated.timing(spinValue, {
       toValue: 1,
@@ -33,13 +30,10 @@ const Loader = () => {
       useNativeDriver: true,
     })
   ).start();
-
-  // Interpolation de la valeur pour la rotation
   const spin = spinValue.interpolate({
     inputRange: [0, 1],
     outputRange: ['0deg', '3600deg'],
   });
-
   return (
     <View style={styles.loaderContainer}>
       <Animated.Image
@@ -51,6 +45,15 @@ const Loader = () => {
   );
 };
 
+const HeaderTitleWithLogo = ({ title }) => (
+  <View style={styles.headerContainer}>
+    <Image
+      source={require('./assets/icon-transparent-bg.png')} 
+      style={styles.headerLogo}
+    />
+    <Text style={styles.headerTitleText}>{title}</Text>
+  </View>
+);
 
 // Pile de navigation pour l'onglet "Recherche"
 function SearchStack() {
@@ -59,12 +62,18 @@ function SearchStack() {
       <Stack.Screen
         name="RechercheHome"
         component={RechercheScreen}
-        options={{ title: 'Rechercher un film' }}
+        // MODIFIÉ: Utilisation de headerTitle au lieu de title
+        options={{
+          headerTitle: () => <HeaderTitleWithLogo title="Rechercher un film" />,
+        }}
       />
       <Stack.Screen
         name="Detail"
         component={DetailScreen}
-        options={({ route }) => ({ title: route.params.film.Title || route.params.film.title || 'Détail' })}
+        // MODIFIÉ: Utilisation de headerTitle avec titre dynamique
+        options={({ route }) => ({
+          headerTitle: () => <HeaderTitleWithLogo title={route.params.film.Title || route.params.film.title || 'Détail'} />,
+        })}
       />
     </Stack.Navigator>
   );
@@ -77,13 +86,18 @@ function ProfileStack() {
       <Stack.Screen
         name="ProfileHome"
         component={ProfileScreen}
-        options={{ title: 'Mes Films Notés' }}
+        // MODIFIÉ: Utilisation de headerTitle
+        options={{
+          headerTitle: () => <HeaderTitleWithLogo title="Mes Films Notés" />,
+        }}
       />
-      {/* On peut aussi naviguer vers le détail depuis le profil */}
       <Stack.Screen
         name="Detail"
         component={DetailScreen}
-        options={({ route }) => ({ title: route.params.film.Title || route.params.film.title || 'Détail' })}
+        // MODIFIÉ: Utilisation de headerTitle avec titre dynamique
+        options={({ route }) => ({
+          headerTitle: () => <HeaderTitleWithLogo title={route.params.film.Title || route.params.film.title || 'Détail'} />,
+        })}
       />
     </Stack.Navigator>
   );
@@ -115,20 +129,18 @@ function MainAppTabs() {
   );
 }
 
-
 export default function App() {
   const [user, setUser] = useState(null);
   const [dbReady, setDbReady] = useState(false);
 
   useEffect(() => {
-    // Initialise la base de données au démarrage de l'application
     initDatabase().then(() => {
       setDbReady(true);
     }).catch(e => {
       console.error("Erreur d'initialisation de la DB:", e);
       showMessage({
         message: "Erreur Critique",
-        description: "Impossible d'initialiser la base de données. Veuillez redémarrer l'application.",
+        description: "Impossible d'initialiser la base de données.",
         type: "danger",
         autoHide: false,
       });
@@ -144,14 +156,12 @@ export default function App() {
       <NavigationContainer>
         <Stack.Navigator>
           {user ? (
-            // Utilisateur connecté
             <Stack.Screen
               name="MainApp"
               component={MainAppTabs}
               options={{ headerShown: false }}
             />
           ) : (
-            // Utilisateur déconnecté
             <Stack.Screen
               name="Connexion"
               component={ConnexionScreen}
@@ -166,14 +176,11 @@ export default function App() {
   );
 }
 
-// Options communes pour les headers des piles
 const stackNavigatorOptions = {
   headerStyle: { backgroundColor: '#141414' },
   headerTintColor: '#fff',
-  headerTitleStyle: { fontWeight: 'bold' },
 };
 
-// Styles pour le loader
 const styles = StyleSheet.create({
   loaderContainer: {
     flex: 1,
@@ -184,5 +191,20 @@ const styles = StyleSheet.create({
   loaderText: {
     color: '#fff',
     marginTop: 20,
+  },
+  headerContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  headerLogo: {
+    width: 50,
+    height: 50,
+    marginRight: 10,
+    resizeMode: 'contain',
+  },
+  headerTitleText: {
+    color: '#fff',
+    fontSize: 18,
+    fontWeight: 'bold',
   },
 });
