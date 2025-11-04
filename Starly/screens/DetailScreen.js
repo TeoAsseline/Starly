@@ -1,6 +1,14 @@
 import React, { useState, useEffect, useContext } from 'react';
-import { StyleSheet, Text, View, Image, ScrollView, TextInput, TouchableOpacity } from 'react-native';
-import { showMessage } from "react-native-flash-message"; 
+import {
+  StyleSheet,
+  Text,
+  View,
+  Image,
+  ScrollView,
+  TextInput,
+  TouchableOpacity,
+} from 'react-native';
+import { showMessage } from 'react-native-flash-message';
 import StarRating from '../components/StarRating';
 import { saveFilm, getFilmNote } from '../database/db';
 import { AuthContext } from '../App';
@@ -9,87 +17,109 @@ export default function DetailScreen({ route, navigation }) {
   const { user } = useContext(AuthContext);
   const { film } = route.params;
 
-  const [note, setNote] = useState(0); 
+  const [note, setNote] = useState(0);
   const [commentaire, setCommentaire] = useState('');
   const [loading, setLoading] = useState(true);
 
-  const posterUrl = film.Poster 
-    ? film.Poster
-    : film.poster_path 
+  // Identifiant universel (OMDB = imdbID, TMDB = id)
+  const filmId = film.imdbID || film.id?.toString();
+
+  // URL de l'affiche, avec gestion du "N/A"
+  const posterUrl =
+    film.Poster && film.Poster !== 'N/A'
+      ? film.Poster
+      : film.poster_path
       ? `https://image.tmdb.org/t/p/w500${film.poster_path}`
       : 'https://via.placeholder.com/200/141414/FFFFFF/?text=Pas+d\'affiche';
 
+  // Chargement de la note existante
   useEffect(() => {
     async function loadExistingNote() {
-      if (user && film.imdbID) {
-        try {
-          const existingFilm = await getFilmNote(user.id, film.imdbID);
-          if (existingFilm) {
-            setNote(existingFilm.note);
-            setCommentaire(existingFilm.commentaire || '');
-          }
-        } catch (error) {
-          console.error("Erreur lors du chargement de la note:", error);
-          // Pas d'alerte critique ici, juste un échec silencieux du chargement
-        }
+      if (!user || !filmId) {
+        setLoading(false);
+        return;
       }
-      setLoading(false);
+
+      try {
+        const existingFilm = await getFilmNote(user.id, filmId);
+        if (existingFilm) {
+          setNote(existingFilm.note || 0);
+          setCommentaire(existingFilm.commentaire || '');
+        }
+      } catch (error) {
+        console.error('Erreur lors du chargement de la note:', error);
+      } finally {
+        setLoading(false);
+      }
     }
     loadExistingNote();
-  }, [user, film.imdbID]);
+  }, [user, filmId]);
 
+  // Sauvegarde du film et de la note
   const handleSave = async () => {
     if (!user) {
       showMessage({
-        message: "Action non autorisée",
-        description: "Vous devez être connecté pour noter un film.",
-        type: "danger",
+        message: 'Action non autorisée',
+        description: 'Vous devez être connecté pour noter un film.',
+        type: 'danger',
       });
       return;
     }
-    // Validation adaptée : 0 signifie qu'aucune étoile (même pas une demi) n'a été sélectionnée.
-    if (note === 0) {
-        showMessage({
-          message: "Note manquante",
-          description: "Veuillez attribuer au moins une demi-étoile (0,5/10).",
-          type: "warning",
-        });
-        return;
+
+    if (!note || note <= 0) {
+      showMessage({
+        message: 'Note manquante',
+        description: 'Veuillez attribuer au moins une demi-étoile (0,5/10).',
+        type: 'warning',
+      });
+      return;
+    }
+
+    if (!filmId) {
+      showMessage({
+        message: 'Film invalide',
+        description: 'Impossible d’enregistrer ce film (ID manquant).',
+        type: 'danger',
+      });
+      return;
     }
 
     try {
       const filmData = {
-        imdbID: film.imdbID,
-        titre: film.Title || film.title,
-        note: note,
-        commentaire: commentaire,
+        imdbID: filmId,
+        titre: film.Title || film.title || 'Titre inconnu',
+        note,
+        commentaire,
         poster: posterUrl,
-        // Utilisez le Year pour les films OMDB ou extrayez l'année de release_date pour TMDB
-        annee: film.Year || (film.release_date ? new Date(film.release_date).getFullYear().toString() : 'N/A'),
+        annee:
+          film.Year ||
+          (film.release_date
+            ? new Date(film.release_date).getFullYear().toString()
+            : 'N/A'),
       };
 
-      // Supposons que saveFilm retourne 'UPDATE' ou 'INSERT'
-      const operationType = await saveFilm(user.id, filmData); 
-      
-      const successMessage = operationType === 'UPDATE' 
-        ? "Votre note et votre commentaire ont été mis à jour !" 
-        : "Le film a été ajouté à votre liste !";
+      const operationType = await saveFilm(user.id, filmData);
+
+      const successMessage =
+        operationType === 'UPDATE'
+          ? 'Votre note et votre commentaire ont été mis à jour !'
+          : 'Le film a été ajouté à votre liste !';
 
       showMessage({
-        message: "Succès de l'enregistrement",
+        message: 'Succès de l’enregistrement',
         description: successMessage,
-        type: "success",
+        type: 'success',
       });
-      
-      // On navigue uniquement après le succès
-      navigation.goBack(); 
 
+      // Petit délai pour laisser le message s’afficher
+      setTimeout(() => navigation.goBack(), 1000);
     } catch (error) {
-      console.error("Erreur lors de l'enregistrement du film:", error);
+      console.error('Erreur lors de l’enregistrement du film:', error);
       showMessage({
-        message: "Erreur d'enregistrement",
-        description: "Une erreur est survenue lors de l'enregistrement. Veuillez réessayer.",
-        type: "danger",
+        message: 'Erreur d’enregistrement',
+        description:
+          'Une erreur est survenue lors de l’enregistrement. Veuillez réessayer.',
+        type: 'danger',
         autoHide: true,
         duration: 5000,
       });
@@ -98,7 +128,7 @@ export default function DetailScreen({ route, navigation }) {
 
   if (loading) {
     return (
-      <View style={[styles.container, { justifyContent: 'center', alignItems: 'center' }]}>
+      <View style={[styles.container, styles.centered]}>
         <Text style={{ color: '#fff' }}>Chargement...</Text>
       </View>
     );
@@ -107,26 +137,21 @@ export default function DetailScreen({ route, navigation }) {
   return (
     <ScrollView style={styles.container}>
       <Image source={{ uri: posterUrl }} style={styles.poster} />
+
       <View style={styles.content}>
         <Text style={styles.title}>{film.Title || film.title}</Text>
         <Text style={styles.description}>
-          {film.Plot || film.overview || "Aucune description disponible."}
+          {film.Plot || film.overview || 'Aucune description disponible.'}
         </Text>
 
+        {/* Section Note */}
         <View style={styles.ratingSection}>
           <Text style={styles.sectionTitle}>Votre note</Text>
-          
-          {/* Le composant StarRating gère l'affichage, on lui passe juste la note sur 10 */}
           <StarRating rating={note} onRatingChange={setNote} />
-          
-          {/* PETIT AJOUT UTILE : Affiche la valeur numérique pour confirmer à l'utilisateur */}
-          {note > 0 && (
-            <Text style={styles.ratingValue}>
-              {note}/10
-            </Text>
-          )}
+          {note > 0 && <Text style={styles.ratingValue}>{note}/10</Text>}
         </View>
 
+        {/* Section Commentaire */}
         <View style={styles.commentSection}>
           <Text style={styles.sectionTitle}>Votre commentaire</Text>
           <TextInput
@@ -134,11 +159,13 @@ export default function DetailScreen({ route, navigation }) {
             placeholder="Ajoutez un commentaire..."
             placeholderTextColor="#888"
             multiline
+            keyboardAppearance="dark"
             value={commentaire}
             onChangeText={setCommentaire}
           />
         </View>
 
+        {/* Bouton Enregistrer */}
         <TouchableOpacity style={styles.saveButton} onPress={handleSave}>
           <Text style={styles.saveButtonText}>Enregistrer ma note</Text>
         </TouchableOpacity>
@@ -151,6 +178,10 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: '#141414',
+  },
+  centered: {
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   poster: {
     width: '100%',
@@ -196,7 +227,7 @@ const styles = StyleSheet.create({
     borderRadius: 8,
     padding: 15,
     minHeight: 100,
-    textAlignVertical: 'top', 
+    textAlignVertical: 'top',
     fontSize: 16,
   },
   saveButton: {

@@ -9,7 +9,8 @@ import {
   TouchableOpacity,
 } from 'react-native';
 import React, { useState, useCallback, useContext } from 'react';
-import { showMessage } from 'react-native-flash-message';
+// Importation de showMessage et hideMessage
+import { showMessage, hideMessage } from 'react-native-flash-message';
 import { useFocusEffect } from '@react-navigation/native';
 import FilmCard from '../components/FilmCard';
 import { getFilmsByUser, deleteFilm, getStats } from '../database/db';
@@ -88,6 +89,9 @@ export default function ProfileScreen({ navigation }) {
   useFocusEffect(
     useCallback(() => {
       loadFilmsAndStats();
+      return () => {
+        hideMessage();
+      };
     }, [loadFilmsAndStats])
   );
 
@@ -131,15 +135,31 @@ export default function ProfileScreen({ navigation }) {
         'Êtes-vous sûr de vouloir supprimer cette note ? Cette action est irréversible.',
       type: 'warning',
       icon: 'warning',
-      autoHide: false,
       duration: 5000,
+      autoHide: true,
+      hideOnPress: false,
       renderFlashMessageIcon: () => (
-        <TouchableOpacity
-          style={styles.confirmDeleteButton}
-          onPress={() => performDelete(idFilm)}
-        >
-          <Text style={styles.confirmDeleteButtonText}>Supprimer</Text>
-        </TouchableOpacity>
+        // Conteneur pour les boutons
+        <View style={styles.popupButtonsContainer}>
+          {/* Bouton Annuler */}
+          <TouchableOpacity
+            style={[styles.popupButton, styles.cancelButton]}
+            onPress={() => hideMessage()} // Ferme la notification
+          >
+            <Text style={styles.popupButtonText}>Annuler</Text>
+          </TouchableOpacity>
+
+          {/* Bouton Supprimer */}
+          <TouchableOpacity
+            style={[styles.popupButton, styles.confirmDeleteButton]}
+            onPress={() => {
+              hideMessage(); // Ferme la notification
+              performDelete(idFilm); // Exécute la suppression
+            }}
+          >
+            <Text style={styles.popupButtonText}>Supprimer</Text>
+          </TouchableOpacity>
+        </View>
       ),
     });
   };
@@ -371,20 +391,34 @@ const styles = StyleSheet.create({
     color: '#ddd',
     fontSize: 14,
   },
-  confirmDeleteButton: {
-    backgroundColor: '#990000',
-    paddingHorizontal: 10,
-    paddingVertical: 5,
-    borderRadius: 5,
-    marginLeft: 15,
-  },
-  confirmDeleteButtonText: {
-    color: '#fff',
-    fontWeight: 'bold',
-  },
   emptyText: {
     color: '#888',
     textAlign: 'center',
     marginTop: 50,
+  },
+  popupButtonsContainer: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginTop: 10, 
+    paddingHorizontal: 10,
+  },
+  popupButton: {
+    paddingHorizontal: 15,
+    paddingVertical: 8,
+    borderRadius: 8,
+    marginHorizontal: 5, 
+    alignItems: 'center',
+    justifyContent: 'center', 
+  },
+  confirmDeleteButton: {
+    backgroundColor: '#990000',
+  },
+  cancelButton: {
+    backgroundColor: '#555',
+  },
+  popupButtonText: {
+    color: '#fff',
+    fontWeight: 'bold',
+    textAlign: 'center',le texte au centre verticalement
   },
 });

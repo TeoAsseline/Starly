@@ -1,8 +1,19 @@
+// RechercheScreen.js
+
 import React, { useState } from 'react';
-import { StyleSheet, View, TextInput, FlatList, Text, ActivityIndicator } from 'react-native';
-import { showMessage } from 'react-native-flash-message'; 
-import FilmCard from '../components/FilmCard'; 
-import { searchMoviesByTitle, getMovieDetails } from '../api'; // Import des fonctions API
+import {
+  StyleSheet,
+  View,
+  TextInput,
+  FlatList,
+  Text,
+  ActivityIndicator,
+  TouchableOpacity,
+} from 'react-native';
+import { showMessage } from 'react-native-flash-message';
+import { MaterialIcons } from '@expo/vector-icons';
+import FilmCard from '../components/FilmCard';
+import { searchMoviesByTitle, getMovieDetails } from '../api';
 
 export default function RechercheScreen({ navigation }) {
   const [query, setQuery] = useState('');
@@ -16,90 +27,105 @@ export default function RechercheScreen({ navigation }) {
     }
 
     setLoading(true);
+    setFilms([]); // Vide les résultats précédents avant une nouvelle recherche
     try {
       const resultats = await searchMoviesByTitle(query);
-      
+
       if (resultats && resultats.length > 0) {
         setFilms(resultats);
       } else {
-         // Notification si aucun résultat n'est trouvé
         showMessage({
-          message: "Aucun Résultat",
+          message: 'Aucun Résultat',
           description: `Aucun film trouvé pour la recherche : "${query}".`,
-          type: "info",
+          type: 'info',
         });
         setFilms([]);
       }
-      
     } catch (error) {
-      console.error("Erreur lors de la recherche:", error);
-      showMessage({
-        message: "Erreur API",
-        description: "Impossible de contacter l'API de films. Vérifiez votre connexion.",
-        type: "danger",
-      });
-      setFilms([]);
+      console.error('Erreur lors de la recherche:', error);
+      
+      // **ICI : Vérification du message de l'erreur**
+      if (error.message === "Trop de résultats, affinez la recherche.") {
+        showMessage({
+          message: 'Trop de résultats',
+          description: "Veuillez affiner votre recherche pour obtenir des résultats plus précis.",
+          type: 'warning', // 'warning' est plus approprié ici
+        });
+      } else {
+        // Erreur générique si ce n'est pas celle que nous attendons
+        showMessage({
+          message: 'Erreur API',
+          description: "Impossible de contacter l'API de films. Vérifiez votre connexion.",
+          type: 'danger',
+        });
+      }
+      setFilms([]); // Assure que la liste est vide en cas d'erreur
     } finally {
       setLoading(false);
     }
   };
-  
+
+  // ... (le reste de votre composant reste inchangé)
+
   const handleCardPress = async (film) => {
     setLoading(true);
     try {
-        // Récupère les détails complets (Plot, etc.)
-        const details = await getMovieDetails(film.imdbID);
-        if (details) {
-            // Navigue vers la page de détail en passant les données complètes
-            navigation.navigate('Detail', { film: details });
-        } else {
-            showMessage({
-              message: "Détails Manquants",
-              description: "Impossible de récupérer les détails complets du film sélectionné.",
-              type: "danger",
-            });
-        }
-    } catch (error) {
-        console.error("Erreur lors de la récupération des détails:", error);
+      const details = await getMovieDetails(film.imdbID);
+      if (details) {
+        navigation.navigate('Detail', { film: details });
+      } else {
         showMessage({
-          message: "Erreur Système",
-          description: "Une erreur est survenue lors de la récupération des détails.",
-          type: "danger",
+          message: 'Détails Manquants',
+          description: 'Impossible de récupérer les détails complets du film sélectionné.',
+          type: 'danger',
         });
+      }
+    } catch (error) {
+      console.error('Erreur lors de la récupération des détails:', error);
+      showMessage({
+        message: 'Erreur Système',
+        description: 'Une erreur est survenue lors de la récupération des détails.',
+        type: 'danger',
+      });
     } finally {
-        setLoading(false);
+      setLoading(false);
     }
+  };
+
+  const handleClearSearch = () => {
+    setQuery('');
+    setFilms([]);
   };
 
   return (
     <View style={styles.container}>
-      <TextInput
-        style={styles.searchBar}
-        placeholder="Entrez le nom d'un film..."
-        placeholderTextColor="#888"
-        value={query}
-        onChangeText={setQuery}
-        onSubmitEditing={handleSearch} 
-      />
+      <View style={styles.searchContainer}>
+        <TextInput
+          style={styles.searchBar}
+          placeholder="Entrez le nom d'un film..."
+          placeholderTextColor="#888"
+          value={query}
+          onChangeText={setQuery}
+          onSubmitEditing={handleSearch}
+        />
+        {query.length > 0 && (
+          <TouchableOpacity onPress={handleClearSearch} style={styles.clearButton}>
+            <MaterialIcons name="clear" size={24} color="#fff" />
+          </TouchableOpacity>
+        )}
+      </View>
+
       {loading ? (
         <ActivityIndicator size="large" color="#E50914" style={{ marginTop: 20 }} />
       ) : (
         <FlatList
           data={films}
           keyExtractor={(item) => item.imdbID}
-          renderItem={({ item }) => (
-            <FilmCard
-              film={item}
-              onPress={() => handleCardPress(item)}
-            />
-          )}
+          renderItem={({ item }) => <FilmCard film={item} onPress={() => handleCardPress(item)} />}
           ListEmptyComponent={
-            query.trim() !== '' && films.length === 0 && !loading ? (
-              // On laisse le message d'erreur si la recherche n'a rien donné
-              <Text style={styles.emptyText}>Aucun film trouvé pour "{query}".</Text>
-            ) : (
+            films.length === 0 && !loading ? (
               <Text style={styles.emptyText}>Commencez à taper un titre pour rechercher.</Text>
-            )
+            ) : null
           }
         />
       )}
@@ -112,17 +138,26 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: '#141414',
   },
-  searchBar: {
+  searchContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginHorizontal: 16,
+    marginTop: 16,
     backgroundColor: '#333',
+    borderRadius: 8,
+  },
+  searchBar: {
+    flex: 1,
     color: '#fff',
     padding: 15,
-    margin: 16,
-    borderRadius: 8,
     fontSize: 16,
+  },
+  clearButton: {
+    padding: 10,
   },
   emptyText: {
     color: '#888',
     textAlign: 'center',
     marginTop: 50,
-  }
+  },
 });
