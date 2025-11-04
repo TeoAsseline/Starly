@@ -7,11 +7,12 @@ import {
   RefreshControl,
   TextInput,
   TouchableOpacity,
+  ScrollView,
 } from 'react-native';
 import React, { useState, useCallback, useContext } from 'react';
-// Importation de showMessage et hideMessage
 import { showMessage, hideMessage } from 'react-native-flash-message';
 import { useFocusEffect } from '@react-navigation/native';
+import { Ionicons } from '@expo/vector-icons';
 import FilmCard from '../components/FilmCard';
 import { getFilmsByUser, deleteFilm, getStats } from '../database/db';
 import { AuthContext } from '../App';
@@ -63,6 +64,10 @@ export default function ProfileScreen({ navigation }) {
   const [refreshing, setRefreshing] = useState(false);
   const [searchText, setSearchText] = useState('');
   const [filterNote, setFilterNote] = useState(null);
+  
+  // Nouveaux états pour le tri
+  const [sortBy, setSortBy] = useState('none'); // 'titre', 'annee', 'note', 'none'
+  const [sortDirection, setSortDirection] = useState('desc'); // 'asc' ou 'desc'
 
   const loadFilmsAndStats = useCallback(async () => {
     if (!user) return;
@@ -89,26 +94,57 @@ export default function ProfileScreen({ navigation }) {
   useFocusEffect(
     useCallback(() => {
       loadFilmsAndStats();
-      // NOUVEAU : La popup disparaît si on quitte l'écran
       return () => {
         hideMessage();
       };
     }, [loadFilmsAndStats])
   );
 
-  // Logique de filtrage
-  const filteredFilms = films.filter((film) => {
-    const matchesSearch =
-      searchText === '' ||
-      film.titre.toLowerCase().includes(searchText.toLowerCase()) ||
-      (film.annee && film.annee.includes(searchText)) ||
-      (film.commentaire &&
-        film.commentaire.toLowerCase().includes(searchText.toLowerCase()));
+  // Logique de filtrage et de tri combinée
+  const processedFilms = films
+    .filter((film) => {
+      const matchesSearch =
+        searchText === '' ||
+        film.titre.toLowerCase().includes(searchText.toLowerCase()) ||
+        (film.annee && film.annee.includes(searchText)) ||
+        (film.commentaire &&
+          film.commentaire.toLowerCase().includes(searchText.toLowerCase()));
 
-    const matchesNote = filterNote === null || film.note === filterNote;
+      const matchesNote = filterNote === null || film.note === filterNote;
 
-    return matchesSearch && matchesNote;
-  });
+      return matchesSearch && matchesNote;
+    })
+    .sort((a, b) => {
+      if (sortBy === 'none') {
+        return 0; // Conserver l'ordre initial (par date d'ajout)
+      }
+
+      let valA, valB;
+
+      if (sortBy === 'titre') {
+        valA = a.titre.toLowerCase();
+        valB = b.titre.toLowerCase();
+      } else if (sortBy === 'annee') {
+        // Traiter l'année comme un nombre, ou 0 si indisponible, pour un tri correct
+        valA = parseInt(a.annee, 10) || 0; 
+        valB = parseInt(b.annee, 10) || 0;
+      } else if (sortBy === 'note') {
+        // Traiter la note comme un nombre, ou 0 si indisponible
+        valA = a.note || 0;
+        valB = b.note || 0;
+      }
+
+      // Logique de tri pour les nombres (année, note)
+      if (typeof valA === 'number' && typeof valB === 'number') {
+        return sortDirection === 'asc' ? (valA - valB) : (valB - valA);
+      }
+      
+      // Logique de tri pour les chaînes (titre)
+      if (valA < valB) return sortDirection === 'asc' ? -1 : 1;
+      if (valA > valB) return sortDirection === 'asc' ? 1 : -1;
+      
+      return 0;
+    });
 
   const performDelete = async (idFilm) => {
     try {
@@ -175,9 +211,16 @@ export default function ProfileScreen({ navigation }) {
   };
 
   const renderNoteFilters = () => {
-    const notes = [null, 2, 4, 6, 8, 10];
+    // Génère toutes les notes possibles de 0 à 10 (permet le filtrage par demi-étoile)
+    const notes = [null, ...Array.from({ length: 11 }, (v, i) => i)]; 
+    
     return (
-      <View style={styles.noteFilterContainer}>
+      <ScrollView 
+        horizontal 
+        showsHorizontalScrollIndicator={false}
+        style={styles.noteFilterScrollView}
+        contentContainerStyle={styles.noteFilterContainer}
+      >
         {notes.map((note) => (
           <TouchableOpacity
             key={note === null ? 'all' : note.toString()}
@@ -197,9 +240,60 @@ export default function ProfileScreen({ navigation }) {
             </Text>
           </TouchableOpacity>
         ))}
+      </ScrollView>
+    );
+  };
+  
+  const renderSortControls = () => {
+    const sortOptions = [
+      { key: 'titre', label: 'Titre' },
+      { key: 'annee', label: 'Année' },
+      { key: 'note', label: 'Note' },
+    ];
+
+    return (
+      <View style={styles.sortControlsContainer}>
+        <Text style={styles.sortLabel}>Trier par:</Text>
+        {sortOptions.map((option) => (
+          <TouchableOpacity
+            key={option.key}
+            style={[
+              styles.sortButton,
+              sortBy === option.key ? styles.activeSortButton : {},
+            ]}
+            onPress={() => {
+              // Si le même bouton est pressé, on change la direction du tri
+              if (sortBy === option.key) {
+                setSortDirection(sortDirection === 'asc' ? 'desc' : 'asc');
+              } else {
+                // Sinon, on sélectionne la nouvelle option de tri
+                setSortBy(option.key);
+                // On réinitialise la direction (Titre par défaut asc, les autres desc)
+                setSortDirection(option.key === 'titre' ? 'asc' : 'desc'); 
+              }
+            }}
+          >
+            <Text style={[
+              styles.sortButtonText,
+              sortBy === option.key ? styles.activeSortButtonText : {},
+            ]}>
+              {option.label}
+            </Text>
+            {/* Affichage de l'icône de direction si l'option est active */}
+            {sortBy === option.key && (
+              <Ionicons 
+                name={sortDirection === 'asc' ? 'arrow-up-sharp' : 'arrow-down-sharp'} 
+                size={14} 
+                color={styles.activeSortButtonText.color} 
+                style={styles.sortIcon}
+              />
+            )}
+          </TouchableOpacity>
+        ))}
       </View>
     );
   };
+
 
   if (loading) {
     return (
@@ -228,10 +322,13 @@ export default function ProfileScreen({ navigation }) {
         value={searchText}
         onChangeText={setSearchText}
       />
+      
+      {/* Contrôles de filtres et de tri */}
       {renderNoteFilters()}
+      {renderSortControls()}
 
       <FlatList
-        data={filteredFilms}
+        data={processedFilms} // Utilisation de la liste filtrée et triée
         keyExtractor={(item) => item.idFilm.toString()}
         renderItem={({ item }) => (
           <View style={styles.filmCardWrapper}>
@@ -325,26 +422,74 @@ const styles = StyleSheet.create({
     borderRadius: 8,
     fontSize: 16,
   },
+  sortControlsContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 10,
+    marginTop: 10,
+    marginBottom: 5,
+    borderBottomWidth: 1,
+    borderBottomColor: '#333',
+    paddingBottom: 8,
+  },
+  sortLabel: {
+    color: '#ccc',
+    fontSize: 14,
+    marginRight: 10,
+    fontWeight: 'bold',
+  },
+  sortButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 4,
+    paddingHorizontal: 10,
+    borderRadius: 15,
+    backgroundColor: '#333',
+    marginRight: 8,
+  },
+  activeSortButton: {
+    backgroundColor: '#E50914',
+  },
+  sortButtonText: {
+    color: '#fff',
+    fontSize: 14,
+  },
+  activeSortButtonText: {
+    color: '#fff',
+    fontWeight: 'bold',
+  },
+  sortIcon: {
+    marginLeft: 4,
+  },
+  noteFilterScrollView: {
+    paddingVertical: 10,
+    height:75
+  },
   noteFilterContainer: {
     flexDirection: 'row',
-    justifyContent: 'space-around',
     paddingHorizontal: 10,
-    marginVertical: 10,
+    height:30
   },
   noteFilterButton: {
     backgroundColor: '#333',
     paddingVertical: 6,
     paddingHorizontal: 12,
     borderRadius: 15,
+    marginRight: 8,
   },
   activeNoteFilterButton: {
-    backgroundColor: '#E50914',
+    backgroundColor: '#FFD700',
   },
   noteFilterText: {
     color: '#fff',
     fontSize: 14,
     fontWeight: '600',
   },
+  activeNoteFilterText: {
+    color: '#141414',
+    fontWeight: 'bold',
+  },
+  
   filmCardWrapper: {
     position: 'relative',
     marginBottom: 15,
