@@ -20,13 +20,19 @@
         "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundColor": "#ffffff"
       },
-      "edgeToEdgeEnabled": true
+      "edgeToEdgeEnabled": true,
+      "package": "com.menwizz.Starly"
     },
     "web": {
       "favicon": "./assets/favicon.png"
     },
     "plugins": [
       "expo-sqlite"
-    ]
+    ],
+    "extra": {
+      "eas": {
+        "projectId": "42b25aba-c84f-4955-9c9a-f6d5873ef581"
+      }
+    }
   }
 }
